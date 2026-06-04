@@ -1,0 +1,14 @@
+fastapi[all]
+sqlalchemy
+alembic
+celery
+redis
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+pytest
+httpx
+
+PyPDF2
+openai
