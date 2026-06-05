@@ -18,6 +18,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import PendingOutlinedIcon from '@mui/icons-material/PendingOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { documentApi } from '../services/api';
 
 /* ───────── TabPanel ───────── */
@@ -58,12 +61,18 @@ const FieldSection = ({ title, defaultExpanded = true, children }: { title: stri
 
 /* ───────── Status Badge ───────── */
 const StatusBadge = ({ status }: { status: string }) => {
-  const map: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  const config: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+    COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
+    VALIDATED: { label: 'Validated', color: '#2563eb', bg: '#eff6ff', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
     PENDING_VALIDATION: { label: 'Pending Validation', color: '#d97706', bg: '#fffbeb', icon: <PendingOutlinedIcon sx={{ fontSize: 14 }} /> },
-    VALIDATED: { label: 'Validated', color: '#059669', bg: '#ecfdf5', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
+    DATAEXTRACTED: { label: 'Data Extracted', color: '#7c3aed', bg: '#f5f3ff', icon: <DescriptionOutlinedIcon sx={{ fontSize: 14 }} /> },
     LOW_CONFIDENCE: { label: 'Low Confidence', color: '#dc2626', bg: '#fef2f2', icon: <WarningAmberIcon sx={{ fontSize: 14 }} /> },
+    FAILED: { label: 'Failed', color: '#dc2626', bg: '#fef2f2', icon: <ErrorOutlineIcon sx={{ fontSize: 14 }} /> },
+    PROCESSING: { label: 'Processing', color: '#0284c7', bg: '#f0f9ff', icon: <AccessTimeIcon sx={{ fontSize: 14 }} /> },
+    'FILE UPLOADED': { label: 'File Uploaded', color: '#64748b', bg: '#f1f5f9', icon: <CloudUploadIcon sx={{ fontSize: 14 }} /> },
   };
-  const c = map[status] || map['PENDING_VALIDATION'];
+  const normalizedStatus = status.replace('_', ' ').toUpperCase();
+  const c = config[normalizedStatus] || config['PROCESSING'];
   return <Chip icon={c.icon as React.ReactElement} label={c.label} size="small" sx={{ color: c.color, bgcolor: c.bg, border: `1px solid ${c.color}30`, fontWeight: 600, fontSize: '0.75rem', height: 28, '& .MuiChip-icon': { color: c.color } }} />;
 };
 
@@ -78,6 +87,7 @@ export const DocumentDetails = () => {
   const [document, setDocument] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editedFields, setEditedFields] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     documentDate: 'N/A', processingDate: 'N/A', receivedDate: 'N/A',
@@ -95,6 +105,14 @@ export const DocumentDetails = () => {
       try {
         const data = await documentApi.getDocument(_id);
         setDocument(data);
+        
+        try {
+          const auditData = await documentApi.getAuditHistory(_id);
+          setEditedFields(auditData.edited_fields || []);
+        } catch (e) {
+          console.error('Failed to fetch audit history', e);
+        }
+
         if (data.extracted_data) {
           setFormData({
             documentDate: data.extracted_data.document_date || 'N/A',
@@ -170,6 +188,14 @@ export const DocumentDetails = () => {
       await documentApi.updateExtractedData(_id, updateData);
       setIsEditing(false);
       setAuditLog([]); // clear manual edits tracking upon save
+      
+      // refresh doc to get new logs and audit
+      const updatedDoc = await documentApi.getDocument(_id);
+      setDocument(updatedDoc);
+      try {
+        const auditData = await documentApi.getAuditHistory(_id);
+        setEditedFields(auditData.edited_fields || []);
+      } catch (e) { }
     } catch (error) {
       console.error('Failed to save document data', error);
     } finally {
@@ -187,8 +213,11 @@ export const DocumentDetails = () => {
     }
   };
 
-  const isFieldUpdated = (field: string) => auditLog.some((l) => l.field === field);
-  const getFieldAudit = (field: string) => auditLog.findLast((l) => l.field === field);
+  const getFieldAudit = (field: string) => auditLog.find((l) => l.field === field);
+  
+  // Convert JS camelCase key to snake_case for DB match
+  const toSnakeCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  const isFieldUpdated = (field: string) => auditLog.some((l) => l.field === field) || editedFields.includes(toSnakeCase(field));
 
   const renderField = (key: keyof typeof formData, label: string) => (
     <TrackedField
@@ -204,21 +233,16 @@ export const DocumentDetails = () => {
 
   /* ─── Validation Data ─── */
   const validationRows = [
-    { field: 'Claim Number', fromLetter: '0100296892', fromGuidewire: 'N/A', match: false },
-    { field: 'Date of Loss', fromLetter: '04/11/2022', fromGuidewire: 'N/A', match: false },
-    { field: 'Claimant Name', fromLetter: 'SANDRA COVOLO', fromGuidewire: 'N/A', match: false },
-    { field: 'Policy Number', fromLetter: 'UAD945528', fromGuidewire: 'N/A', match: false },
-    { field: 'Amount Billed', fromLetter: 'N/A', fromGuidewire: 'N/A', match: true },
-    { field: 'Amount Owed', fromLetter: '$ 81,702.55', fromGuidewire: 'N/A', match: false },
+    { field: 'Claim Number', fromLetter: formData.claimNumber, fromGuidewire: 'N/A', match: false },
+    { field: 'Date of Loss', fromLetter: formData.dateOfLoss, fromGuidewire: 'N/A', match: false },
+    { field: 'Claimant Name', fromLetter: formData.claimantName, fromGuidewire: 'N/A', match: false },
+    { field: 'Policy Number', fromLetter: formData.policyNumber, fromGuidewire: 'N/A', match: false },
+    { field: 'Amount Billed', fromLetter: formData.amountBilled, fromGuidewire: formData.amountBilled, match: true }, // mocked match
+    { field: 'Amount Owed', fromLetter: formData.amountOwed, fromGuidewire: 'N/A', match: false },
   ];
 
   /* ─── Log Data ─── */
-  const logRows = [
-    { claimNumber: '0100296892', description: 'A child flow for fuzzy matching has been triggered.', createdOn: '12/14/2023 02:52 PM', status: 'FuzzyMatchingInitiated', statusColor: '#2563eb', statusBg: '#eff6ff' },
-    { claimNumber: '0100296892', description: 'The file has been uploaded to the Dataverse after successful data extraction.', createdOn: '12/14/2023 02:51 PM', status: 'Add Row in Dataverse', statusColor: '#059669', statusBg: '#ecfdf5' },
-    { claimNumber: '0100296892', description: 'OCR and AI extraction completed successfully.', createdOn: '12/14/2023 02:50 PM', status: 'DataExtracted', statusColor: '#7c3aed', statusBg: '#f5f3ff' },
-    { claimNumber: '0100296892', description: 'PDF file received and processing started.', createdOn: '12/14/2023 02:49 PM', status: 'Processing', statusColor: '#0284c7', statusBg: '#f0f9ff' },
-  ];
+  const logRows = document?.processing_logs || [];
 
   if (loading) {
     return <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}><Typography>Loading document details...</Typography></Box>;
@@ -246,17 +270,23 @@ export const DocumentDetails = () => {
           </Box>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-          <Tooltip title="Previous Document"><IconButton size="small"><NavigateBeforeIcon /></IconButton></Tooltip>
-          <Tooltip title="Next Document"><IconButton size="small"><NavigateNextIcon /></IconButton></Tooltip>
+          <Tooltip title="View previous document"><IconButton size="small"><NavigateBeforeIcon /></IconButton></Tooltip>
+          <Tooltip title="View next document"><IconButton size="small"><NavigateNextIcon /></IconButton></Tooltip>
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           {isEditing ? (
-            <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
+            <Tooltip title="Save modifications to Dataverse">
+              <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </Tooltip>
           ) : (
-            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} size="small">Edit</Button>
+            <Tooltip title="Enable manual editing of extracted fields">
+              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} size="small">Edit</Button>
+            </Tooltip>
           )}
-          <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small">Trigger Validation</Button>
+          <Tooltip title="Re-run validation rules on this document">
+            <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small">Trigger Validation</Button>
+          </Tooltip>
         </Box>
       </Paper>
 
@@ -281,7 +311,7 @@ export const DocumentDetails = () => {
           {/* AI Status Bar */}
           <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <SmartToyOutlinedIcon sx={{ color: '#059669' }} />
+              <Tooltip title="AI Bot is active and extracted data from PDF"><SmartToyOutlinedIcon sx={{ color: '#059669' }} /></Tooltip>
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>AI Bot Extraction</Typography>
                 <Typography variant="caption" color="text.secondary">All fields extracted via OCR + AI</Typography>
@@ -291,7 +321,9 @@ export const DocumentDetails = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Accuracy</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 800, color: '#059669' }}>100%</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#059669' }}>
+                  {document?.accuracy_score != null ? `${Math.round(document.accuracy_score * 100)}%` : 'N/A'}
+                </Typography>
               </Box>
               <Divider orientation="vertical" flexItem />
               <Box sx={{ textAlign: 'center' }}>
@@ -312,20 +344,35 @@ export const DocumentDetails = () => {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
 
             {/* PDF Viewer */}
-            <Paper
-              elevation={0}
-              sx={{
-                height: { xs: 300, lg: 'calc(100vh - 340px)' },
-                border: `1px solid ${theme.palette.divider}`,
-                bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#1e293b',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2,
-                position: 'sticky', top: 0,
-              }}
-            >
-              <DescriptionOutlinedIcon sx={{ fontSize: 56, color: '#475569', opacity: 0.5 }} />
-              <Typography sx={{ color: '#94a3b8', fontWeight: 600 }}>PDF Viewer Placeholder</Typography>
-              <Typography variant="caption" sx={{ color: '#64748b' }}>{document?.file_name || 'No file'}</Typography>
-            </Paper>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, position: 'sticky', top: 0 }}>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  height: { xs: 500, lg: 'calc(100vh - 370px)' },
+                  border: `1px solid ${theme.palette.divider}`,
+                  bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#1e293b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
+                  overflow: 'hidden'
+                }}
+              >
+                {document ? (
+                  <iframe 
+                    src={`http://127.0.0.1:8000/api/v1/documents/${document.id}/file`} 
+                    width="100%" 
+                    height="100%" 
+                    style={{ border: 'none' }}
+                    title={document.file_name}
+                  />
+                ) : (
+                  <>
+                    <DescriptionOutlinedIcon sx={{ fontSize: 56, color: '#475569', opacity: 0.5 }} />
+                    <Typography sx={{ color: '#94a3b8', fontWeight: 600 }}>PDF Viewer Placeholder</Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b' }}>No file</Typography>
+                  </>
+                )}
+              </Paper>
+            </Box>
 
             {/* Fields Form */}
             <Box>
@@ -381,8 +428,8 @@ export const DocumentDetails = () => {
               <Typography variant="body2" color="text.secondary">Compare extracted data with Guidewire records</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <Button variant="outlined" size="small">API Not Validated</Button>
-              <Button variant="contained" startIcon={<SendIcon />} size="small">Trigger Validation</Button>
+              <Tooltip title="This API connection has not yet been validated"><Button variant="outlined" size="small">API Not Validated</Button></Tooltip>
+              <Tooltip title="Re-check validation rules against external system"><Button variant="contained" startIcon={<SendIcon />} size="small">Trigger Validation</Button></Tooltip>
             </Box>
           </Box>
 
@@ -404,9 +451,9 @@ export const DocumentDetails = () => {
                     <TableCell sx={{ color: row.fromGuidewire === 'N/A' ? 'text.secondary' : 'text.primary' }}>{row.fromGuidewire}</TableCell>
                     <TableCell align="center">
                       {row.match ? (
-                        <Chip icon={<CheckCircleOutlineIcon sx={{ fontSize: 14 }} />} label="Match" size="small" sx={{ color: '#059669', bgcolor: '#ecfdf5', border: '1px solid #05966930', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#059669' } }} />
+                        <Tooltip title="Data matches external system"><Chip icon={<CheckCircleOutlineIcon sx={{ fontSize: 14 }} />} label="Match" size="small" sx={{ color: '#059669', bgcolor: '#ecfdf5', border: '1px solid #05966930', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#059669' } }} /></Tooltip>
                       ) : (
-                        <Chip icon={<WarningAmberIcon sx={{ fontSize: 14 }} />} label="Mismatch" size="small" sx={{ color: '#dc2626', bgcolor: '#fef2f2', border: '1px solid #dc262630', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#dc2626' } }} />
+                        <Tooltip title="Data mismatch with external system. Manual review required."><Chip icon={<WarningAmberIcon sx={{ fontSize: 14 }} />} label="Mismatch" size="small" sx={{ color: '#dc2626', bgcolor: '#fef2f2', border: '1px solid #dc262630', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#dc2626' } }} /></Tooltip>
                       )}
                     </TableCell>
                   </TableRow>
@@ -416,7 +463,7 @@ export const DocumentDetails = () => {
           </TableContainer>
 
           <Paper elevation={0} sx={{ mt: 4, p: 4, border: `2px dashed ${theme.palette.divider}`, textAlign: 'center' }}>
-            <Button disabled variant="contained" size="large" sx={{ px: 6, mb: 1.5 }}>Send to Guidewire</Button>
+            <Tooltip title="Cannot send until all mismatches are resolved"><Button disabled variant="contained" size="large" sx={{ px: 6, mb: 1.5 }}>Send to Guidewire</Button></Tooltip>
             <Typography variant="body2" color="text.secondary">Claimant name and number must be resolved before sending to Guidewire.</Typography>
           </Paper>
         </TabPanel>
@@ -428,21 +475,32 @@ export const DocumentDetails = () => {
             <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc' }}>
-                  <TableCell>Claim #</TableCell>
+                  <TableCell>Log ID</TableCell>
                   <TableCell>Description</TableCell>
                   <TableCell>Created On</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {logRows.map((row, i) => (
-                  <TableRow key={i} hover>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>{row.claimNumber}</Typography></TableCell>
-                    <TableCell>{row.description}</TableCell>
-                    <TableCell><Typography variant="body2" color="text.secondary">{row.createdOn}</Typography></TableCell>
-                    <TableCell><Chip label={row.status} size="small" sx={{ color: row.statusColor, bgcolor: row.statusBg, border: `1px solid ${row.statusColor}30`, fontWeight: 600, fontSize: '0.75rem', height: 26 }} /></TableCell>
-                  </TableRow>
-                ))}
+                {logRows.map((row: any, i: number) => {
+                  // Determine coloring based on status
+                  const statusLabel = row.status || 'UNKNOWN';
+                  let statusColor = '#64748b';
+                  let statusBg = '#f1f5f9';
+                  if (statusLabel === 'DataExtracted' || statusLabel === 'DATA_EXTRACTED') { statusColor = '#7c3aed'; statusBg = '#f5f3ff'; }
+                  else if (statusLabel === 'Processing') { statusColor = '#0284c7'; statusBg = '#f0f9ff'; }
+                  else if (statusLabel === 'Failed') { statusColor = '#dc2626'; statusBg = '#fef2f2'; }
+                  else if (statusLabel === 'Completed' || statusLabel === 'Validated') { statusColor = '#059669'; statusBg = '#ecfdf5'; }
+
+                  return (
+                    <TableRow key={i} hover>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>#{row.id}</Typography></TableCell>
+                      <TableCell>{row.description}</TableCell>
+                      <TableCell><Typography variant="body2" color="text.secondary">{new Date(row.created_at).toLocaleString()}</Typography></TableCell>
+                      <TableCell><Chip label={statusLabel} size="small" sx={{ color: statusColor, bgcolor: statusBg, border: `1px solid ${statusColor}30`, fontWeight: 600, fontSize: '0.75rem', height: 26 }} /></TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

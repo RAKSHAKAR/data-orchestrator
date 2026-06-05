@@ -50,3 +50,14 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.delete(obj)
         db.commit()
         return obj
+
+from app.models.domain import Document, ExtractedData
+from app.schemas.domain import DocumentBase, ExtractedDataUpdate
+
+class DocumentRepository(BaseRepository[Document, DocumentBase, DocumentBase]):
+    def __init__(self):
+        super().__init__(Document)
+
+class ExtractedDataRepository(BaseRepository[ExtractedData, ExtractedDataUpdate, ExtractedDataUpdate]):
+    def __init__(self):
+        super().__init__(ExtractedData)

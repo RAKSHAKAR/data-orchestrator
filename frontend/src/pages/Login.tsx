@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton, Tooltip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import { authApi } from '../services/api';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -15,8 +16,15 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  if (isAuthenticated) {
+    navigate('/');
+    return null;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please enter both email and password.');
@@ -24,10 +32,16 @@ export const Login = () => {
     }
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      login('mock-jwt-token', { email, name: email.split('@')[0] });
+    try {
+      const data = await authApi.login(email, password);
+      login(data.access_token, data.user);
       navigate('/');
-    }, 600);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -111,9 +125,7 @@ export const Login = () => {
                 '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.3)' },
                 '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.5)' },
                 '&.Mui-focused fieldset': { borderColor: '#60a5fa', borderWidth: '2px' },
-                '& input': {
-                  paddingLeft: '8px',
-                },
+                '& input': { paddingLeft: '8px' },
                 '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
                   transition: 'background-color 5000s ease-in-out 0s',
                   WebkitTextFillColor: '#f1f5f9',
@@ -134,9 +146,11 @@ export const Login = () => {
                 startAdornment: <InputAdornment position="start"><LockOutlinedIcon fontSize="small" sx={{ color: '#64748b' }} /></InputAdornment>,
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small" sx={{ color: '#64748b' }}>
-                      {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                    </IconButton>
+                    <Tooltip title={showPassword ? 'Hide password' : 'Show password'}>
+                      <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small" sx={{ color: '#64748b' }}>
+                        {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
                   </InputAdornment>
                 ),
               }
@@ -149,9 +163,7 @@ export const Login = () => {
                 '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.3)' },
                 '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.5)' },
                 '&.Mui-focused fieldset': { borderColor: '#60a5fa', borderWidth: '2px' },
-                '& input': {
-                  paddingLeft: '8px',
-                },
+                '& input': { paddingLeft: '8px' },
                 '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
                   transition: 'background-color 5000s ease-in-out 0s',
                   WebkitTextFillColor: '#f1f5f9',
@@ -180,7 +192,7 @@ export const Login = () => {
         </form>
 
         <Typography variant="caption" sx={{ display: 'block', mt: 3, textAlign: 'center', color: '#64748b' }}>
-          Enter any email & password to access the demo
+          Default credentials: admin@demo.com / admin123
         </Typography>
       </Paper>
     </Box>

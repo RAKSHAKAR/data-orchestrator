@@ -62,29 +62,33 @@ export const Layout = ({ children }: LayoutProps) => {
         }}
       >
         <Toolbar sx={{ gap: 1 }}>
-          <IconButton onClick={() => setDrawerOpen(!drawerOpen)} edge="start" size="small" sx={{ mr: 1 }}>
-            {drawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
-          </IconButton>
+          <Tooltip title={drawerOpen ? "Collapse sidebar" : "Expand sidebar"}>
+            <IconButton onClick={() => setDrawerOpen(!drawerOpen)} edge="start" size="small" sx={{ mr: 1 }}>
+              {drawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+            </IconButton>
+          </Tooltip>
 
-          <Typography
-            variant="h6"
-            noWrap
-            sx={{
-              fontWeight: 800,
-              fontSize: '1.1rem',
-              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              cursor: 'pointer',
-            }}
-            onClick={() => navigate('/')}
-          >
-            Data Orchestrator
-          </Typography>
+          <Tooltip title="Go to Dashboard">
+            <Typography
+              variant="h6"
+              noWrap
+              sx={{
+                fontWeight: 800,
+                fontSize: '1.1rem',
+                background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                cursor: 'pointer',
+              }}
+              onClick={() => navigate('/')}
+            >
+              Data Orchestrator
+            </Typography>
+          </Tooltip>
 
           <Box sx={{ flexGrow: 1 }} />
 
-          <Tooltip title="Notifications">
+          <Tooltip title="View pending notifications">
             <IconButton size="small" sx={{ color: theme.palette.text.secondary }}>
               <Badge badgeContent={2} color="error" variant="dot">
                 <NotificationsNoneIcon fontSize="small" />
@@ -92,7 +96,7 @@ export const Layout = ({ children }: LayoutProps) => {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title={theme.palette.mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
+          <Tooltip title={theme.palette.mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
             <IconButton onClick={toggleDarkMode} size="small" sx={{ color: theme.palette.text.secondary }}>
               {theme.palette.mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
             </IconButton>
@@ -100,27 +104,29 @@ export const Layout = ({ children }: LayoutProps) => {
 
           <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 1 }} />
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}>
-            <Avatar
-              sx={{
-                width: 32,
-                height: 32,
-                bgcolor: theme.palette.primary.main,
-                fontSize: '0.8rem',
-                fontWeight: 700,
-              }}
-            >
-              {user?.email?.[0]?.toUpperCase() || 'A'}
-            </Avatar>
-            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                {user?.name || 'Admin User'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
-                {user?.email || 'admin@dataorchestrator.com'}
-              </Typography>
+          <Tooltip title="Current user profile">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}>
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: theme.palette.primary.main,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                }}
+              >
+                {user?.email?.[0]?.toUpperCase() || 'A'}
+              </Avatar>
+              <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                  {user?.name || 'Admin User'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+                  {user?.email || 'admin@demo.com'}
+                </Typography>
+              </Box>
             </Box>
-          </Box>
+          </Tooltip>
 
           <Tooltip title="Sign Out">
             <IconButton
@@ -185,7 +191,7 @@ export const Layout = ({ children }: LayoutProps) => {
                     '&:hover': { bgcolor: theme.palette.action.hover },
                   }}
                 >
-                  <Tooltip title={drawerOpen ? '' : item.text} placement="right">
+                  <Tooltip title={drawerOpen ? '' : `Go to ${item.text}`} placement="right">
                     <ListItemIcon
                       sx={{
                         minWidth: drawerOpen ? 36 : 'auto',

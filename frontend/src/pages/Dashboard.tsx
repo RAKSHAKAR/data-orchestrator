@@ -37,66 +37,69 @@ interface MetricCardProps {
 const MetricCard = ({ title, value, icon, color, bgColor, progress }: MetricCardProps) => {
   const theme = useTheme();
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 2.5,
-        border: `1px solid ${theme.palette.divider}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        '&:hover': {
-          borderColor: color,
-          boxShadow: `0 0 0 1px ${color}22`,
-        },
-      }}
-    >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <Box>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.68rem' }}>
-            {title}
-          </Typography>
-          <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.5, lineHeight: 1 }}>
-            {value}
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: 2,
-            bgcolor: bgColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: color,
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </Box>
-      </Box>
-      {progress !== undefined && (
-        <Box sx={{ mt: 'auto' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">{progress}%</Typography>
+    <Tooltip title={`Metric: ${title} = ${value}`} arrow placement="top">
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.5,
+          border: `1px solid ${theme.palette.divider}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+          cursor: 'default',
+          '&:hover': {
+            borderColor: color,
+            boxShadow: `0 0 0 1px ${color}22`,
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.68rem' }}>
+              {title}
+            </Typography>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.5, lineHeight: 1 }}>
+              {value}
+            </Typography>
           </Box>
-          <LinearProgress
-            variant="determinate"
-            value={progress}
+          <Box
             sx={{
-              height: 4,
+              width: 40,
+              height: 40,
               borderRadius: 2,
-              bgcolor: `${color}15`,
-              '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 },
+              bgcolor: bgColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: color,
+              flexShrink: 0,
             }}
-          />
+          >
+            {icon}
+          </Box>
         </Box>
-      )}
-    </Paper>
+        {progress !== undefined && (
+          <Box sx={{ mt: 'auto' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">{progress}%</Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{
+                height: 4,
+                borderRadius: 2,
+                bgcolor: `${color}15`,
+                '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 },
+              }}
+            />
+          </Box>
+        )}
+      </Paper>
+    </Tooltip>
   );
 };
 
@@ -106,13 +109,15 @@ const StatusChip = ({ status }: { status: string }) => {
     COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
     VALIDATED: { label: 'Validated', color: '#2563eb', bg: '#eff6ff', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
     PENDING_VALIDATION: { label: 'Pending Validation', color: '#d97706', bg: '#fffbeb', icon: <PendingOutlinedIcon sx={{ fontSize: 14 }} /> },
-    DATA_EXTRACTED: { label: 'Data Extracted', color: '#7c3aed', bg: '#f5f3ff', icon: <DescriptionOutlinedIcon sx={{ fontSize: 14 }} /> },
+    DATAEXTRACTED: { label: 'Data Extracted', color: '#7c3aed', bg: '#f5f3ff', icon: <DescriptionOutlinedIcon sx={{ fontSize: 14 }} /> },
     LOW_CONFIDENCE: { label: 'Low Confidence', color: '#dc2626', bg: '#fef2f2', icon: <WarningAmberIcon sx={{ fontSize: 14 }} /> },
     FAILED: { label: 'Failed', color: '#dc2626', bg: '#fef2f2', icon: <ErrorOutlineIcon sx={{ fontSize: 14 }} /> },
     PROCESSING: { label: 'Processing', color: '#0284c7', bg: '#f0f9ff', icon: <AccessTimeIcon sx={{ fontSize: 14 }} /> },
+    UPLOADED: { label: 'Uploaded', color: '#64748b', bg: '#f1f5f9', icon: <CloudUploadIcon sx={{ fontSize: 14 }} /> },
   };
 
-  const c = config[status] || config['PROCESSING'];
+  const normalizedStatus = status.replace('_', '').toUpperCase();
+  const c = config[normalizedStatus] || config['PROCESSING'];
 
   return (
     <Chip
@@ -132,8 +137,6 @@ const StatusChip = ({ status }: { status: string }) => {
   );
 };
 
-
-
 /* ───────── Dashboard Component ───────── */
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -146,7 +149,6 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchDocuments = async () => {
-    setLoading(true);
     try {
       const data = await documentApi.getDocuments();
       setDocuments(data);
@@ -161,6 +163,17 @@ export const Dashboard = () => {
     fetchDocuments();
   }, []);
 
+  useEffect(() => {
+    const hasPending = documents.some(d => 
+      ['FILE UPLOADED', 'PROCESSING', 'DATA EXTRACTED', 'VALIDATED'].includes(d.status.replace('_', ' ').toUpperCase())
+    );
+    
+    if (hasPending) {
+      const interval = setInterval(fetchDocuments, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [documents]);
+
   const filteredDocs = documents.filter((doc) => {
     const matchesSearch =
       !searchTerm ||
@@ -168,9 +181,22 @@ export const Dashboard = () => {
       (doc.extracted_data?.claim_number || '').includes(searchTerm) ||
       (doc.extracted_data?.claimant_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (doc.extracted_data?.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || doc.status.toUpperCase() === statusFilter;
+    const matchesStatus = statusFilter === 'All' || doc.status.toUpperCase() === statusFilter.replace('_', '').toUpperCase() || doc.status.toUpperCase() === statusFilter.toUpperCase();
     return matchesSearch && matchesStatus;
   });
+
+  const getMetric = (status: string) => documents.filter(d => d.status.toUpperCase() === status.toUpperCase()).length;
+  const completedCount = getMetric('COMPLETED');
+  const pendingCount = getMetric('PENDING_VALIDATION') + getMetric('PROCESSING') + getMetric('UPLOADED');
+  const extractedCount = getMetric('DATAEXTRACTED') + getMetric('DATA_EXTRACTED');
+  const failedCount = getMetric('FAILED') + getMetric('LOW_CONFIDENCE');
+
+  const avgConfidence = documents.length > 0 
+    ? Math.round(documents.reduce((acc, d) => acc + (d.confidence_score || 0), 0) / documents.length * 100) 
+    : 0;
+  const avgAccuracy = documents.length > 0 
+    ? Math.round(documents.reduce((acc, d) => acc + (d.accuracy_score || 0), 0) / documents.length * 100) 
+    : 0;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
@@ -184,21 +210,21 @@ export const Dashboard = () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Button variant="outlined" startIcon={<DownloadIcon />} size="small">Export</Button>
-          <Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => navigate('/upload')}>Upload PDF</Button>
-          <Button variant="contained" startIcon={<SendIcon />} size="small">Send Validated to Guidewire</Button>
+          <Tooltip title="Export current view to CSV"><Button variant="outlined" startIcon={<DownloadIcon />} size="small">Export</Button></Tooltip>
+          <Tooltip title="Upload a new PDF document"><Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => navigate('/upload')}>Upload PDF</Button></Tooltip>
+          <Tooltip title="Send all validated documents to Guidewire"><Button variant="contained" startIcon={<SendIcon />} size="small">Send Validated to Guidewire</Button></Tooltip>
         </Box>
       </Box>
 
       {/* ───── METRICS GRID ───── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(7, 1fr)' }, gap: 2 }}>
         <MetricCard title="Total Documents" value={documents.length} icon={<ArticleOutlinedIcon />} color="#2563eb" bgColor="#eff6ff" />
-        <MetricCard title="Completed" value={documents.filter(d => d.status === 'Completed' || d.status === 'COMPLETED').length} icon={<CheckCircleOutlineIcon />} color="#059669" bgColor="#ecfdf5" />
-        <MetricCard title="Pending" value="1" icon={<PendingOutlinedIcon />} color="#d97706" bgColor="#fffbeb" />
-        <MetricCard title="Low Confidence" value="1" icon={<WarningAmberIcon />} color="#dc2626" bgColor="#fef2f2" />
-        <MetricCard title="API Not Validated" value="0" icon={<GppBadOutlinedIcon />} color="#7c3aed" bgColor="#f5f3ff" />
-        <MetricCard title="AI Accuracy" value="96.8%" icon={<TrendingUpIcon />} color="#059669" bgColor="#ecfdf5" progress={97} />
-        <MetricCard title="AI Confidence" value="86.9%" icon={<TrendingUpIcon />} color="#2563eb" bgColor="#eff6ff" progress={87} />
+        <MetricCard title="Completed" value={completedCount} icon={<CheckCircleOutlineIcon />} color="#059669" bgColor="#ecfdf5" />
+        <MetricCard title="Pending" value={pendingCount} icon={<PendingOutlinedIcon />} color="#d97706" bgColor="#fffbeb" />
+        <MetricCard title="Failed / Low Conf" value={failedCount} icon={<WarningAmberIcon />} color="#dc2626" bgColor="#fef2f2" />
+        <MetricCard title="Extracted" value={extractedCount} icon={<DescriptionOutlinedIcon />} color="#7c3aed" bgColor="#f5f3ff" />
+        <MetricCard title="AI Accuracy" value={`${avgAccuracy}%`} icon={<TrendingUpIcon />} color="#059669" bgColor="#ecfdf5" progress={avgAccuracy} />
+        <MetricCard title="AI Confidence" value={`${avgConfidence}%`} icon={<TrendingUpIcon />} color="#2563eb" bgColor="#eff6ff" progress={avgConfidence} />
       </Box>
 
       {/* ───── DATA GRID ───── */}
@@ -206,7 +232,7 @@ export const Dashboard = () => {
 
         {/* Filter Bar */}
         <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#fafbfc', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <TextField
+          <Tooltip title="Filter by File Name, Claim #, Claimant, or Firm"><TextField
             size="small"
             placeholder="Search documents..."
             value={searchTerm}
@@ -217,24 +243,26 @@ export const Dashboard = () => {
                 startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
               },
             }}
-          />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          /></Tooltip>
+          <Tooltip title="Filter by processing status"><FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Status</InputLabel>
             <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)} sx={{ borderRadius: 2 }}>
               <MenuItem value="All">All Statuses</MenuItem>
+              <MenuItem value="UPLOADED">Uploaded</MenuItem>
+              <MenuItem value="PROCESSING">Processing</MenuItem>
+              <MenuItem value="DATA_EXTRACTED">Data Extracted</MenuItem>
               <MenuItem value="PENDING_VALIDATION">Pending Validation</MenuItem>
               <MenuItem value="VALIDATED">Validated</MenuItem>
               <MenuItem value="COMPLETED">Completed</MenuItem>
               <MenuItem value="LOW_CONFIDENCE">Low Confidence</MenuItem>
-              <MenuItem value="DATA_EXTRACTED">Data Extracted</MenuItem>
               <MenuItem value="FAILED">Failed</MenuItem>
             </Select>
-          </FormControl>
+          </FormControl></Tooltip>
           <Box sx={{ flexGrow: 1 }} />
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
             {filteredDocs.length} document{filteredDocs.length !== 1 ? 's' : ''}
           </Typography>
-          <Tooltip title="Refresh">
+          <Tooltip title="Refresh Document List">
             <IconButton size="small" onClick={fetchDocuments} disabled={loading}>
               <SyncIcon fontSize="small" sx={{ animation: loading ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '100%': { transform: 'rotate(360deg)' } } }} />
             </IconButton>
@@ -271,7 +299,7 @@ export const Dashboard = () => {
             <TableBody>
               {filteredDocs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={20} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">No documents found matching your criteria.</Typography>
                   </TableCell>
                 </TableRow>
@@ -326,7 +354,7 @@ export const Dashboard = () => {
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.documents_in_envelope || 'N/A'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}><StatusChip status={doc.status.toUpperCase()} /></TableCell>
                     <TableCell align="center" sx={{ position: 'sticky', right: 0, bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', zIndex: 1, boxShadow: '-4px 0 8px -4px rgba(0,0,0,0.1)' }}>
-                      <Tooltip title="Review Document">
+                      <Tooltip title="Review Document Details">
                         <IconButton
                           size="small"
                           onClick={(e) => { e.stopPropagation(); navigate(`/documents/${doc.id}`); }}

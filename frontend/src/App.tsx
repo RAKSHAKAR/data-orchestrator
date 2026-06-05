@@ -10,6 +10,7 @@ import { DocumentList } from './pages/DocumentList';
 import { DocumentDetails } from './pages/DocumentDetails';
 import { Login } from './pages/Login';
 import { Upload } from './pages/Upload';
+import { Settings } from './pages/Settings';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
@@ -33,7 +34,7 @@ function App() {
                   <Route path="/documents" element={<DocumentList />} />
                   <Route path="/documents/:id" element={<DocumentDetails />} />
                   <Route path="/upload" element={<Upload />} />
-                  <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
+                  <Route path="/settings" element={<Settings />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

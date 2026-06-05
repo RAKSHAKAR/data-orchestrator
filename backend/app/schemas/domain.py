@@ -79,7 +79,7 @@ class DocumentBase(BaseModel):
 class DocumentResponse(DocumentBase):
     id: int
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     extracted_data: Optional[ExtractedDataResponse] = None
     processing_logs: List[ProcessingLogResponse] = []
     audit_history: List[AuditHistoryResponse] = []
@@ -90,7 +90,7 @@ class DocumentResponse(DocumentBase):
 class DocumentListResponse(DocumentBase):
     id: int
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
