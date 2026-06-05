@@ -271,8 +271,6 @@ export const DocumentDetails = () => {
     }
   };
 
-  const getFieldAudit = (field: string) => auditLog.find((l) => l.field === field);
-  
   // Convert JS camelCase key to snake_case for DB match
   const toSnakeCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
   const isFieldUpdated = (field: string) => auditLog.some((l) => l.field === field) || editedFields.includes(toSnakeCase(field));

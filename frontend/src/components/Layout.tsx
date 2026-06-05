@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box, AppBar, Toolbar, Typography, IconButton, useTheme, Avatar, Divider, Badge,
-  Menu, MenuItem, useMediaQuery, ListItemIcon, ListItemText
+  Menu, MenuItem, ListItemIcon, ListItemText
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -13,7 +13,7 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
 
@@ -23,7 +23,6 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
-  const location = useLocation();
   const theme = useTheme();
   const { logout, user } = useAuthStore();
   const { toggleDarkMode } = useStore();
