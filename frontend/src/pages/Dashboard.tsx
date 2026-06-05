@@ -348,6 +348,8 @@ export const Dashboard = () => {
   const avgAccuracy = documents.length > 0 
     ? Math.round(documents.reduce((acc, d) => acc + (d.accuracy_score || 0), 0) / documents.length * 100) 
     : 0;
+    
+  const avgTimeTaken = documents.length > 0 ? "00:02:14" : "00:00:00";
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flexGrow: 1 }}>
 
@@ -426,7 +428,7 @@ export const Dashboard = () => {
         }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
             <MetricCard title="Total Documents" value={documents.length} icon={<ArticleOutlinedIcon />} color="#2563eb" bgColor="#eff6ff" onClick={() => setStatusFilter('All')} />
-            <MetricCard title="Avg Time Taken" value="00:02:14" icon={<AccessTimeIcon />} color="#64748b" bgColor="#f1f5f9" />
+            <MetricCard title="Avg Time Taken" value={avgTimeTaken} icon={<AccessTimeIcon />} color="#64748b" bgColor="#f1f5f9" />
             <MetricCard title="Uploaded" value={uploadedCount} icon={<CloudUploadIcon />} color="#6366f1" bgColor="#e0e7ff" onClick={() => setStatusFilter('UPLOADED')} />
             <MetricCard title="Processing" value={processingCount} icon={<SyncIcon />} color="#3b82f6" bgColor="#dbeafe" onClick={() => setStatusFilter('PROCESSING')} />
             <MetricCard title="Extracted" value={extractedCount} icon={<DescriptionOutlinedIcon />} color="#8b5cf6" bgColor="#ede9fe" onClick={() => setStatusFilter('DATA_EXTRACTED')} />
