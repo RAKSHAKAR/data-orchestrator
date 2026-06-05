@@ -177,7 +177,7 @@ export const DocumentDetails = () => {
     for (const [key, value] of Object.entries(formData)) {
       const errorMsg = getValidationRule(key as keyof typeof formData)(value);
       if (errorMsg) {
-        setToast({ open: true, message: `Cannot save. Please fix the validation error in ${key.replace(/([A-Z])/g, ' $1').trim()}`, severity: 'error' });
+        alert(`Cannot save. Please fix the validation error in ${key.replace(/([A-Z])/g, ' $1').trim()}`);
         return;
       }
     }
@@ -303,9 +303,6 @@ export const DocumentDetails = () => {
     <TrackedField
       label={label}
       value={formData[key]}
-      originalValue={getFieldAudit(key)?.original || ''}
-      updatedBy={getFieldAudit(key)?.updatedBy}
-      updatedOn={getFieldAudit(key)?.updatedOn}
       isManuallyUpdated={isFieldUpdated(key)}
       showIcons={showAiIcons}
       isEditing={isEditing}

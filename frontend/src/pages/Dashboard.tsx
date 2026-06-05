@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, IconButton, MenuItem, Select,
-  FormControl, InputAdornment, LinearProgress, InputLabel,
+  FormControl, LinearProgress,
   TablePagination, useTheme, TableSortLabel, Dialog, DialogTitle, DialogContent, CircularProgress
 } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -11,7 +11,6 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import SendIcon from '@mui/icons-material/Send';
 import DownloadIcon from '@mui/icons-material/Download';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
@@ -375,7 +374,9 @@ export const Dashboard = () => {
             size="small"
             type="date"
             sx={{ width: 160, '& .MuiOutlinedInput-root': { borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc' } }}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Box>
 

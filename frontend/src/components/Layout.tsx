@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  Box, Drawer, AppBar, Toolbar, Typography, List, ListItemButton, ListItemIcon,
-  ListItemText, IconButton, useTheme, Avatar, Divider, Badge,
-  Menu, MenuItem, useMediaQuery
+  Box, AppBar, Toolbar, Typography, IconButton, useTheme, Avatar, Divider, Badge,
+  Menu, MenuItem, useMediaQuery, ListItemIcon, ListItemText
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -14,14 +13,9 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
-import MenuIcon from '@mui/icons-material/Menu';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
-
-const DRAWER_WIDTH = 240;
-const DRAWER_COLLAPSED = 72;
 
 interface LayoutProps {
   children: ReactNode;
@@ -33,9 +27,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const theme = useTheme();
   const { logout, user } = useAuthStore();
   const { toggleDarkMode } = useStore();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const [drawerOpen, setDrawerOpen] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationAnchorEl, setNotificationAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleNotificationClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -44,17 +35,6 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const handleNotificationClose = () => {
     setNotificationAnchorEl(null);
-  };
-
-  const currentDrawerWidth = drawerOpen ? DRAWER_WIDTH : DRAWER_COLLAPSED;
-
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  ];
-
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname.startsWith(path);
   };
 
   return (

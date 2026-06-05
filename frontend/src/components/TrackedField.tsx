@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Box, TextField, Typography, Chip, useTheme } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
+import { Box, TextField, Typography, useTheme } from '@mui/material';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import PersonIcon from '@mui/icons-material/Person';
 
 interface TrackedFieldProps {
   label: string;
-  originalValue: string;
   value: string;
   isManuallyUpdated: boolean;
   showIcons?: boolean;
-  updatedBy?: string;
-  updatedOn?: string;
   isEditing?: boolean;
   validate?: (value: string) => string;
   onChange: (newValue: string) => void;
 }
 
-export const TrackedField = ({ label, originalValue, value, isManuallyUpdated, showIcons = true, updatedBy, updatedOn, isEditing = true, validate, onChange }: TrackedFieldProps) => {
+export const TrackedField = ({ label, value, isManuallyUpdated, showIcons = true, isEditing = true, validate, onChange }: TrackedFieldProps) => {
   const theme = useTheme();
   const [currentValue, setCurrentValue] = useState(value);
 
