@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { authApi } from '../services/api';
@@ -177,6 +177,7 @@ export const Login = () => {
             variant="contained"
             size="large"
             disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : undefined}
             sx={{
               mt: 4,
               py: 1.5,

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box, AppBar, Toolbar, Typography, IconButton, useTheme, Avatar, Divider, Badge,
-  Menu, MenuItem, ListItemIcon, ListItemText
+  Menu, MenuItem, ListItemIcon, ListItemText,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -27,6 +28,10 @@ export const Layout = ({ children }: LayoutProps) => {
   const { logout, user } = useAuthStore();
   const { toggleDarkMode } = useStore();
   const [notificationAnchorEl, setNotificationAnchorEl] = useState<null | HTMLElement>(null);
+  const [hasUnread, setHasUnread] = useState(() => {
+    return localStorage.getItem('notifications_read') !== 'true';
+  });
+  const [selectedNotification, setSelectedNotification] = useState<{title: string, message: string, detail: string, icon: any} | null>(null);
 
   const handleNotificationClick = (event: React.MouseEvent<HTMLElement>) => {
     setNotificationAnchorEl(event.currentTarget);
@@ -34,6 +39,19 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const handleNotificationClose = () => {
     setNotificationAnchorEl(null);
+  };
+
+  const handleMarkAllRead = () => {
+    setHasUnread(false);
+    localStorage.setItem('notifications_read', 'true');
+    setNotificationAnchorEl(null);
+  };
+
+  const handleNotificationAction = (notification: {title: string, message: string, detail: string, icon: any}) => {
+    setHasUnread(false);
+    localStorage.setItem('notifications_read', 'true');
+    setNotificationAnchorEl(null);
+    setSelectedNotification(notification);
   };
 
   return (
@@ -74,7 +92,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
           
             <IconButton size="small" onClick={handleNotificationClick} sx={{ color: theme.palette.text.secondary }}>
-              <Badge badgeContent={2} color="error" variant="dot">
+              <Badge color="error" variant="dot" invisible={!hasUnread}>
                 <NotificationsNoneIcon fontSize="small" />
               </Badge>
             </IconButton>
@@ -112,10 +130,14 @@ export const Layout = ({ children }: LayoutProps) => {
           >
             <Box sx={{ p: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Notifications</Typography>
-              <Typography variant="caption" sx={{ color: 'primary.main', cursor: 'pointer', fontWeight: 600 }}>Mark all read</Typography>
             </Box>
             <Divider />
-            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
+            <MenuItem onClick={() => handleNotificationAction({
+              title: 'Low Confidence Score',
+              message: "Document 'Invoice_492.pdf' has 72% confidence.",
+              detail: "This document has been processed but returned a 72% confidence score. This is below the automatic threshold. Please review this document manually in the dashboard.",
+              icon: <WarningAmberIcon color="warning" sx={{ fontSize: 40 }} />
+            })} sx={{ py: 1.5, whiteSpace: 'normal' }}>
               <ListItemIcon>
                 <WarningAmberIcon color="warning" />
               </ListItemIcon>
@@ -124,7 +146,12 @@ export const Layout = ({ children }: LayoutProps) => {
                 secondary={<Typography variant="caption" color="text.secondary">Document 'Invoice_492.pdf' has 72% confidence.</Typography>}
               />
             </MenuItem>
-            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
+            <MenuItem onClick={() => handleNotificationAction({
+              title: 'Document Pending',
+              message: "A document requires manual validation before sending to Guidewire.",
+              detail: "Please check the 'Pending Validation' tab in your dashboard to review and approve the extracted data fields before they are synced to the downstream system.",
+              icon: <DashboardIcon color="info" sx={{ fontSize: 40 }} />
+            })} sx={{ py: 1.5, whiteSpace: 'normal' }}>
               <ListItemIcon>
                 <DashboardIcon color="info" />
               </ListItemIcon>
@@ -133,7 +160,12 @@ export const Layout = ({ children }: LayoutProps) => {
                 secondary={<Typography variant="caption" color="text.secondary">A document requires manual validation before sending to Guidewire.</Typography>}
               />
             </MenuItem>
-            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
+            <MenuItem onClick={() => handleNotificationAction({
+              title: 'SharePoint Sync',
+              message: "Successfully synced 3 new files from SharePoint.",
+              detail: "The automated sync has completed successfully. 3 new files have been fetched from the connected SharePoint directory and placed into the processing queue.",
+              icon: <CheckCircleOutlinedIcon color="success" sx={{ fontSize: 40 }} />
+            })} sx={{ py: 1.5, whiteSpace: 'normal' }}>
               <ListItemIcon>
                 <CheckCircleOutlinedIcon color="success" />
               </ListItemIcon>
@@ -142,9 +174,10 @@ export const Layout = ({ children }: LayoutProps) => {
                 secondary={<Typography variant="caption" color="text.secondary">Successfully synced 3 new files from SharePoint.</Typography>}
               />
             </MenuItem>
-            <Box sx={{ p: 1, borderTop: `1px solid ${theme.palette.divider}`, textAlign: 'center' }}>
-              <Typography variant="caption" color="primary" sx={{ cursor: 'pointer', fontWeight: 600 }}>Mark all as read</Typography>
-            </Box>
+            <Divider />
+            <MenuItem onClick={handleMarkAllRead} disabled={!hasUnread} sx={{ py: 1, justifyContent: 'center' }}>
+              <Typography variant="caption" color={hasUnread ? "primary" : "text.disabled"} sx={{ fontWeight: 600 }}>Mark all as read</Typography>
+            </MenuItem>
           </Menu>
 
           
@@ -224,6 +257,39 @@ export const Layout = ({ children }: LayoutProps) => {
           {children}
         </Box>
       </Box>
+
+      {/* Notification Detail Dialog */}
+      <Dialog 
+        open={Boolean(selectedNotification)} 
+        onClose={() => setSelectedNotification(null)}
+        maxWidth="sm"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { borderRadius: 3, p: 1 } }}
+      >
+        {selectedNotification && (
+          <>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2, pb: 1 }}>
+              {selectedNotification.icon}
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {selectedNotification.title}
+              </Typography>
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body1" sx={{ mb: 2, fontWeight: 500, color: 'text.primary' }}>
+                {selectedNotification.message}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                {selectedNotification.detail}
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={() => setSelectedNotification(null)} variant="contained" disableElevation sx={{ borderRadius: 2 }}>
+                Close
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </Box>
   );
 };

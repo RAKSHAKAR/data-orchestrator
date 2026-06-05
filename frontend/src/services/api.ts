@@ -129,13 +129,14 @@ export const settingsApi = {
     const response = await api.get('/settings/');
     return response.data;
   },
-  updateSettings: async (sharepointUrl: string, openaiApiKey?: string, guidewireUrl?: string, guidewireApiKey?: string, azureClientId?: string, azureTenantId?: string) => {
+  updateSettings: async (sharepointUrl: string, openaiApiKey?: string, guidewireUrl?: string, guidewireApiKey?: string, azureClientId?: string, azureTenantId?: string, systemPrompt?: string) => {
     const payload: any = { sharepoint_url: sharepointUrl };
     if (openaiApiKey) payload.openai_api_key = openaiApiKey;
     if (guidewireUrl) payload.guidewire_api_url = guidewireUrl;
     if (guidewireApiKey) payload.guidewire_api_key = guidewireApiKey;
     if (azureClientId) payload.azure_client_id = azureClientId;
     if (azureTenantId) payload.azure_tenant_id = azureTenantId;
+    if (systemPrompt) payload.system_prompt = systemPrompt;
     
     const response = await api.post('/settings/', payload);
     return response.data;
@@ -146,6 +147,22 @@ export const settingsApi = {
   },
   signOutMicrosoft: async () => {
     const response = await api.post('/settings/auth/logout');
+    return response.data;
+  },
+  downloadSampleUrl: `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/documents/sample/download`,
+  testOpenaiExtraction: async (apiKey: string, systemPrompt: string, file: File | null, useSample: boolean = false) => {
+    const formData = new FormData();
+    formData.append('api_key', apiKey);
+    formData.append('system_prompt', systemPrompt);
+    if (file) {
+      formData.append('file', file);
+    }
+    formData.append('use_sample', String(useSample));
+    const response = await api.post('/settings/test_openai_extraction', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
   testSharepoint: async (url: string, token: string) => {

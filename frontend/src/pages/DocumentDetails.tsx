@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Tabs, Tab, Paper, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, Switch, Accordion, AccordionSummary,
-  AccordionDetails, IconButton, Breadcrumbs, Link, useTheme, Divider
+  AccordionDetails, IconButton, Breadcrumbs, Link, useTheme, Divider, CircularProgress
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TrackedField } from '../components/TrackedField';
@@ -378,7 +378,7 @@ export const DocumentDetails = () => {
             <>
               <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
               {isEditing ? (
-                <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
+                <Button variant="contained" startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
               ) : (
@@ -387,7 +387,7 @@ export const DocumentDetails = () => {
             </>
           )}
           
-            <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>
+            <Button variant="contained" color="primary" startIcon={actionLoading ? <CircularProgress size={16} color="inherit" /> : <SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>
               {actionLoading ? 'Validating...' : 'Trigger Validation'}
             </Button>
           
@@ -533,7 +533,9 @@ export const DocumentDetails = () => {
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5 }}>
               {!validationData && <Button variant="outlined" size="small">API Not Validated</Button>}
-              <Button variant="contained" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>Trigger Validation</Button>
+              <Button variant="contained" startIcon={actionLoading ? <CircularProgress size={16} color="inherit" /> : <SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>
+                {actionLoading ? 'Validating...' : 'Trigger Validation'}
+              </Button>
             </Box>
           </Box>
 
@@ -575,8 +577,9 @@ export const DocumentDetails = () => {
                   size="large" 
                   sx={{ px: 6, mb: 1.5 }}
                   onClick={handleSendToGuidewire}
+                  startIcon={actionLoading ? <CircularProgress size={20} color="inherit" /> : undefined}
                 >
-                  Send to Guidewire
+                  {actionLoading ? 'Sending...' : 'Send to Guidewire'}
                 </Button>
               </span>
             

@@ -156,6 +156,8 @@ export const Dashboard = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
   
   type Order = 'asc' | 'desc';
   const [order, setOrder] = useState<Order>('desc');
@@ -242,14 +244,14 @@ export const Dashboard = () => {
 
   const handleExport = async () => {
     try {
-      setLoading(true);
+      setExporting(true);
       const documentIds = filteredDocs.map(d => d.id);
       await documentApi.exportExcel(documentIds);
     } catch (e) {
       console.error('Failed to export', e);
       alert('Failed to export to Excel.');
     } finally {
-      setLoading(false);
+      setExporting(false);
     }
   };
 
@@ -257,7 +259,7 @@ export const Dashboard = () => {
     const validatedDocs = documents.filter(d => d.status.toUpperCase() === 'VALIDATED');
     if (validatedDocs.length === 0) return;
     
-    setLoading(true);
+    setBulkSending(true);
     try {
       const ids = validatedDocs.map(d => d.id);
       await documentApi.bulkSendGuidewire(ids);
@@ -265,7 +267,7 @@ export const Dashboard = () => {
     } catch (e) {
       console.error('Failed to bulk send to Guidewire', e);
     } finally {
-      setLoading(false);
+      setBulkSending(false);
     }
   };
 
@@ -385,7 +387,16 @@ export const Dashboard = () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'nowrap', width: { xs: '100%', md: 'auto' } }}>
-          <Button variant="outlined" startIcon={<DownloadIcon />} size="small" onClick={handleExport} sx={{ flex: { xs: 1, sm: '0 0 auto' }, whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0.5, sm: 1 } } }}>Export</Button>
+          <Button 
+            variant="outlined" 
+            startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />} 
+            size="small" 
+            onClick={handleExport} 
+            disabled={exporting}
+            sx={{ flex: { xs: 1, sm: '0 0 auto' }, whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0.5, sm: 1 } } }}
+          >
+            {exporting ? 'Exporting...' : 'Export'}
+          </Button>
           <Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => setUploadModalOpen(true)} sx={{ flex: { xs: 1, sm: '0 0 auto' }, whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0.5, sm: 1 } } }}>Upload</Button>
         </Box>
       </Box>
@@ -469,10 +480,19 @@ export const Dashboard = () => {
           <Box sx={{ mt: 'auto', pt: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
             <Button 
               variant="contained" 
+              color="primary" 
+              startIcon={bulkSending ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutlineIcon />}
+              onClick={handleBulkSend}
+              disabled={bulkSending || documents.filter(d => d.status.toUpperCase() === 'VALIDATED').length === 0}
+              sx={{ flex: 1, fontSize: '0.75rem', py: 1 }}
+            >
+              {bulkSending ? 'Sending...' : 'Bulk Send to Guidewire'}
+            </Button>
+            <Button 
+              variant="contained" 
               size="small" 
               sx={{ flex: 1, fontSize: '0.75rem', py: 1 }}
               onClick={() => {
-                // Mock behavior: move pending to api not validated
                 alert('Moved PV files to API Not Validate');
               }}
             >

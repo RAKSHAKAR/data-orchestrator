@@ -101,12 +101,13 @@ def extract_images_from_pdf(file_path: str, max_pages: int = 50) -> List[str]:
     return base64_images
 
 
-def call_openai_vision(base64_images: List[str]) -> dict:
+def call_openai_vision(base64_images: List[str], dynamic_api_key: str = None, custom_prompt: str = None) -> dict:
     """Call OpenAI Vision API to extract structured data."""
-    if not settings.OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY is not set in environment variables.")
+    api_key_to_use = dynamic_api_key or settings.OPENAI_API_KEY
+    if not api_key_to_use:
+        raise ValueError("OPENAI_API_KEY is not set.")
         
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = OpenAI(api_key=api_key_to_use)
     
     # Construct message content
     content = [{"type": "text", "text": "Extract the specified fields from these document images."}]
@@ -118,11 +119,21 @@ def call_openai_vision(base64_images: List[str]) -> dict:
             }
         })
 
+    # Determine prompt to use
+    if custom_prompt:
+        system_prompt_to_use = custom_prompt
+    else:
+        prompt_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "prompt.txt")
+        system_prompt_to_use = SYSTEM_PROMPT
+        if os.path.exists(prompt_path):
+            with open(prompt_path, "r") as f:
+                system_prompt_to_use = f.read()
+
     # Call OpenAI Structured Outputs
     completion = client.beta.chat.completions.parse(
         model="gpt-4o",  # or gpt-4o-mini depending on cost/perf
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt_to_use},
             {"role": "user", "content": content}
         ],
         response_format=DemandLetterExtraction,

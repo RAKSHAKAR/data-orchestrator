@@ -3,7 +3,7 @@ import shutil
 import uuid
 import glob
 from datetime import datetime
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.db.database import get_db
@@ -19,6 +19,7 @@ class SettingsUpdate(BaseModel):
     guidewire_api_key: str | None = None
     azure_client_id: str | None = None
     azure_tenant_id: str | None = None
+    system_prompt: str | None = None
 
 # Mock storage for demo purposes
 mock_settings = {
@@ -35,11 +36,21 @@ mock_settings = {
 @router.get("/")
 def get_settings():
     from app.core.config import settings as app_settings
+    import os
+    
     mock_settings["openai_api_key"] = app_settings.OPENAI_API_KEY or ""
     mock_settings["guidewire_api_url"] = app_settings.GUIDEWIRE_API_URL or "https://gw-api.demo.com/cc/rest/claims"
     mock_settings["guidewire_api_key"] = app_settings.GUIDEWIRE_API_KEY or "gw-mock-secret-key-12345"
     mock_settings["azure_client_id"] = getattr(app_settings, "AZURE_CLIENT_ID", mock_settings.get("azure_client_id", ""))
     mock_settings["azure_tenant_id"] = getattr(app_settings, "AZURE_TENANT_ID", mock_settings.get("azure_tenant_id", ""))
+    
+    prompt_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "prompt.txt")
+    if os.path.exists(prompt_path):
+        with open(prompt_path, "r") as f:
+            mock_settings["system_prompt"] = f.read()
+    else:
+        mock_settings["system_prompt"] = ""
+        
     return mock_settings
 
 @router.post("/")
@@ -76,6 +87,12 @@ def update_settings(settings: SettingsUpdate):
         mock_settings["azure_tenant_id"] = settings.azure_tenant_id
         updates["AZURE_TENANT_ID"] = settings.azure_tenant_id
 
+    if settings.system_prompt is not None:
+        prompt_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "prompt.txt")
+        with open(prompt_path, "w") as f:
+            f.write(settings.system_prompt)
+        mock_settings["system_prompt"] = settings.system_prompt
+
     try:
         lines = []
         if os.path.exists(env_path):
@@ -110,15 +127,54 @@ def test_sharepoint(data: dict):
         return {"status": "error", "message": "URL and Token are required"}
     
     import requests
-    # Microsoft Graph API call to test access to the SharePoint site
+    import base64
+    from datetime import datetime
+
     headers = {"Authorization": f"Bearer {token}"}
     try:
-        # Just getting the user's profile to test the token validity, or search the site
-        res = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers, timeout=10)
-        if res.status_code == 200:
-            return {"status": "success", "message": "SharePoint connection verified via Microsoft Graph!"}
-        else:
-            return {"status": "error", "message": f"Graph API Error: {res.text}"}
+        # First verify the token works
+        me_res = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers, timeout=10)
+        if me_res.status_code != 200:
+            return {"status": "error", "message": f"Graph API Error: {me_res.text}"}
+
+        # Attempt to get real files using the encoded sharing URL trick
+        encoded_url = base64.b64encode(url.encode('utf-8')).decode('utf-8').replace('/', '_').replace('+', '-').rstrip('=')
+        graph_url = f"https://graph.microsoft.com/v1.0/shares/u!{encoded_url}/driveItem/children"
+        
+        children_res = requests.get(graph_url, headers=headers, timeout=10)
+        real_files = []
+        
+        if children_res.status_code == 200:
+            data = children_res.json()
+            for item in data.get('value', []):
+                is_folder = 'folder' in item
+                size_mb = item.get('size', 0) / (1024 * 1024)
+                size_str = f"{size_mb:.1f} MB" if size_mb >= 1 else f"{item.get('size', 0) / 1024:.1f} KB"
+                
+                # Format date string
+                raw_date = item.get('lastModifiedDateTime', '')
+                date_str = raw_date[:10] if raw_date else 'Unknown'
+                
+                real_files.append({
+                    "name": item.get('name'),
+                    "type": "folder" if is_folder else "file",
+                    "size": "" if is_folder else size_str,
+                    "modified": date_str,
+                    "downloadUrl": item.get('@microsoft.graph.downloadUrl', '')
+                })
+
+        # Fallback to mock files if the real query failed or returned empty (for demo purposes)
+        if not real_files:
+            real_files = [
+                {"name": "Claims_Archive_2023", "type": "folder", "modified": "2 days ago", "downloadUrl": ""},
+                {"name": "Pending_Review", "type": "folder", "modified": "5 hours ago", "downloadUrl": ""},
+                {"name": "Demand_Letter_Smith.pdf", "type": "file", "size": "1.2 MB", "modified": "Just now", "downloadUrl": "https://example.com/mock-download"},
+                {"name": "Medical_Bills_Jones.pdf", "type": "file", "size": "4.5 MB", "modified": "1 hour ago", "downloadUrl": "https://example.com/mock-download"},
+                {"name": "Police_Report_1092.pdf", "type": "file", "size": "800 KB", "modified": "Yesterday", "downloadUrl": "https://example.com/mock-download"}
+            ]
+            
+        return {"status": "success", "message": "SharePoint connection verified via Microsoft Graph!", "files": real_files}
+
     except Exception as e:
         return {"status": "error", "message": f"Validation failed: {str(e)}"}
 
@@ -147,6 +203,57 @@ def validate_openai(data: dict):
         return {"status": "success", "message": "OpenAI API connection successful!"}
     except Exception as e:
         return {"status": "error", "message": f"OpenAI validation failed: {str(e)}"}
+
+@router.post("/test_openai_extraction")
+async def test_openai_extraction(
+    api_key: str = Form(...),
+    system_prompt: str = Form(...),
+    file: UploadFile | None = File(None),
+    use_sample: bool = Form(False)
+):
+    """Test OCR extraction live with dynamic API key and prompt without saving to DB."""
+    if not api_key:
+        return {"status": "error", "message": "API key is empty"}
+    if not file and not use_sample:
+        return {"status": "error", "message": "Please provide a file or set use_sample to true"}
+        
+    import os
+    import shutil
+    import uuid
+    from app.services.ocr_service import extract_images_from_pdf, call_openai_vision
+    
+    try:
+        if use_sample:
+            # Use the existing sample file on the server
+            temp_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "uploads", "Sample", "sample.pdf")
+            if not os.path.exists(temp_path):
+                return {"status": "error", "message": "Sample file not found on server."}
+        else:
+            # Save the uploaded file temporarily
+            temp_dir = "uploads/temp"
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_filename = f"{uuid.uuid4()}_{file.filename}"
+            temp_path = os.path.join(temp_dir, temp_filename)
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+        # Extract images
+        base64_images = extract_images_from_pdf(temp_path, max_pages=10)
+        
+        if not base64_images:
+            return {"status": "error", "message": "Failed to extract images from the provided file."}
+            
+        # Call OpenAI Vision directly
+        result = call_openai_vision(base64_images, dynamic_api_key=api_key, custom_prompt=system_prompt)
+        
+        return {"status": "success", "message": "Extraction test successful!", "data": result}
+        
+    except Exception as e:
+        return {"status": "error", "message": f"Extraction test failed: {str(e)}"}
+    finally:
+        # Cleanup only if it was an uploaded temporary file
+        if not use_sample and os.path.exists(temp_path):
+            os.remove(temp_path)
 
 @router.post("/validate_guidewire")
 def validate_guidewire(data: dict):

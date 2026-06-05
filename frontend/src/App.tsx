@@ -10,6 +10,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ defa
 const DocumentDetails = React.lazy(() => import('./pages/DocumentDetails').then(m => ({ default: m.DocumentDetails })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const NotFound = React.lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const SuspenseLoader = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -39,6 +40,7 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/documents/:id" element={<DocumentDetails />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>
