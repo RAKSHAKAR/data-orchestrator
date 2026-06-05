@@ -85,8 +85,10 @@ export const TrackedField = ({ label, originalValue, value, isManuallyUpdated, i
               },
             }
           }}
-          InputProps={{
-            readOnly: !isEditing,
+          slotProps={{
+            input: {
+              readOnly: !isEditing,
+            }
           }}
         />
       </Tooltip>

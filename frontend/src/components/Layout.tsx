@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import {
   Box, Drawer, AppBar, Toolbar, Typography, List, ListItemButton, ListItemIcon,
   ListItemText, IconButton, useTheme, Avatar, Divider, Tooltip, Badge,
-  Menu, MenuItem, ListItemAvatar
+  Menu, MenuItem
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -117,37 +117,39 @@ export const Layout = ({ children }: LayoutProps) => {
             onClose={handleNotificationClose}
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            PaperProps={{
-              elevation: 4,
-              sx: {
-                mt: 1.5,
-                width: 320,
-                borderRadius: 2,
-                overflow: 'visible',
-                '&:before': {
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  top: 0,
-                  right: 14,
-                  width: 10,
-                  height: 10,
-                  bgcolor: 'background.paper',
-                  transform: 'translateY(-50%) rotate(45deg)',
-                  zIndex: 0,
+            slotProps={{
+              paper: {
+                elevation: 4,
+                sx: {
+                  mt: 1.5,
+                  width: 320,
+                  borderRadius: 2,
+                  overflow: 'visible',
+                  '&:before': {
+                    content: '""',
+                    display: 'block',
+                    position: 'absolute',
+                    top: 0,
+                    right: 14,
+                    width: 10,
+                    height: 10,
+                    bgcolor: 'background.paper',
+                    transform: 'translateY(-50%) rotate(45deg)',
+                    zIndex: 0,
+                  },
                 },
-              },
+              }
             }}
           >
             <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="subtitle1" fontWeight="bold">Notifications</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>Notifications</Typography>
             </Box>
             <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
               <ListItemIcon>
                 <WarningAmberIcon color="warning" />
               </ListItemIcon>
               <ListItemText 
-                primary={<Typography variant="body2" fontWeight="600">Document Pending</Typography>}
+                primary={<Typography variant="body2" sx={{ fontWeight: 600 }}>Document Pending</Typography>}
                 secondary={<Typography variant="caption" color="text.secondary">A document requires manual validation before sending to Guidewire.</Typography>}
               />
             </MenuItem>
@@ -156,7 +158,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <CheckCircleOutlinedIcon color="success" />
               </ListItemIcon>
               <ListItemText 
-                primary={<Typography variant="body2" fontWeight="600">SharePoint Sync</Typography>}
+                primary={<Typography variant="body2" sx={{ fontWeight: 600 }}>SharePoint Sync</Typography>}
                 secondary={<Typography variant="caption" color="text.secondary">Successfully synced 3 new files from SharePoint.</Typography>}
               />
             </MenuItem>
