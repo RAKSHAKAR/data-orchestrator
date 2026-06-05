@@ -17,6 +17,8 @@ export const Settings = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [toast, setToast] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
+  const [validatingOpenAI, setValidatingOpenAI] = useState(false);
+  const [validatingGuidewire, setValidatingGuidewire] = useState(false);
   
   const { user } = useAuthStore();
 
@@ -72,6 +74,38 @@ export const Settings = () => {
       setToast({ open: true, message: 'Failed to sync with SharePoint', severity: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleValidateOpenAI = async () => {
+    setValidatingOpenAI(true);
+    try {
+      const response = await settingsApi.validateOpenai(openaiApiKey);
+      if (response.status === 'success') {
+        setToast({ open: true, message: response.message, severity: 'success' });
+      } else {
+        setToast({ open: true, message: response.message, severity: 'error' });
+      }
+    } catch (e) {
+      setToast({ open: true, message: 'Failed to validate OpenAI API Key', severity: 'error' });
+    } finally {
+      setValidatingOpenAI(false);
+    }
+  };
+
+  const handleValidateGuidewire = async () => {
+    setValidatingGuidewire(true);
+    try {
+      const response = await settingsApi.validateGuidewire(guidewireUrl, guidewireApiKey);
+      if (response.status === 'success') {
+        setToast({ open: true, message: response.message, severity: 'success' });
+      } else {
+        setToast({ open: true, message: response.message, severity: 'error' });
+      }
+    } catch (e) {
+      setToast({ open: true, message: 'Failed to validate Guidewire connection', severity: 'error' });
+    } finally {
+      setValidatingGuidewire(false);
     }
   };
 
@@ -150,6 +184,11 @@ export const Settings = () => {
             }}
           />
         </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 4 }}>
+          <Button variant="outlined" color="primary" onClick={handleValidateOpenAI} disabled={!openaiApiKey || validatingOpenAI}>
+            {validatingOpenAI ? 'Testing...' : 'Test Connection'}
+          </Button>
+        </Box>
 
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Guidewire Integration</Typography>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
@@ -205,6 +244,11 @@ export const Settings = () => {
               }
             }}
           />
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 4 }}>
+          <Button variant="outlined" color="primary" onClick={handleValidateGuidewire} disabled={!guidewireUrl || !guidewireApiKey || validatingGuidewire}>
+            {validatingGuidewire ? 'Testing...' : 'Test Connection'}
+          </Button>
         </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 4 }}>

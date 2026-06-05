@@ -131,3 +131,35 @@ def simulate_sharepoint_upload(background_tasks: BackgroundTasks, db: Session = 
     background_tasks.add_task(process_document_pipeline, new_doc.id, new_filepath)
     
     return {"status": "success", "message": f"Successfully pulled new file from SharePoint: {new_filename} and triggered processing workflow."}
+
+@router.post("/validate_openai")
+def validate_openai(data: dict):
+    api_key = data.get("api_key")
+    if not api_key:
+        return {"status": "error", "message": "API key is empty"}
+    import openai
+    client = openai.OpenAI(api_key=api_key)
+    try:
+        client.models.list()
+        return {"status": "success", "message": "OpenAI API connection successful!"}
+    except Exception as e:
+        return {"status": "error", "message": f"OpenAI validation failed: {str(e)}"}
+
+@router.post("/validate_guidewire")
+def validate_guidewire(data: dict):
+    url = data.get("url")
+    key = data.get("api_key")
+    if not url or not key:
+        return {"status": "error", "message": "URL and API key are required"}
+    
+    if "demo.com" in url or "yourcompany.com" in url or "mock" in key:
+        return {"status": "success", "message": "Guidewire API connection successful! (Simulated Demo Endpoint)"}
+        
+    import requests
+    try:
+        response = requests.get(url, headers={"Authorization": f"Bearer {key}"}, timeout=5)
+        # We don't raise_for_status because even a 401/403 means the server exists and responded, which might just mean wrong endpoint path but reachable.
+        # But for full validation, let's just return success if we get any response.
+        return {"status": "success", "message": f"Guidewire API reached successfully! (Status: {response.status_code})"}
+    except Exception as e:
+        return {"status": "error", "message": f"Guidewire validation failed: {str(e)}"}

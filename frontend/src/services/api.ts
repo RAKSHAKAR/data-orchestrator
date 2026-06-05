@@ -101,7 +101,7 @@ export const documentApi = {
   getAuditHistory: async (id: string | number) => {
     const response = await api.get(`/documents/${id}/audit`);
     return response.data;
-  },
+  }
 };
 
 export const settingsApi = {
@@ -123,7 +123,15 @@ export const settingsApi = {
     return response.data;
   },
   simulateSharepointUpload: async () => {
-    const response = await api.post('/settings/simulate_sharepoint_upload');
+    const response = await api.post(`/settings/simulate_sharepoint_upload`);
+    return response.data;
+  },
+  validateOpenai: async (apiKey: string) => {
+    const response = await api.post(`/settings/validate_openai`, { api_key: apiKey });
+    return response.data;
+  },
+  validateGuidewire: async (url: string, apiKey: string) => {
+    const response = await api.post(`/settings/validate_guidewire`, { url, api_key: apiKey });
     return response.data;
   }
 };
