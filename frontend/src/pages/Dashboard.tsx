@@ -43,11 +43,11 @@ const MetricCard = ({ title, value, icon, color, bgColor, progress, onClick }: M
       elevation={0}
       onClick={onClick}
       sx={{
-        p: 1.5,
+        p: 1.75,
         border: `1px solid ${theme.palette.divider}`,
         display: 'flex',
         flexDirection: 'column',
-        gap: 1,
+        gap: 1.25,
         position: 'relative',
         overflow: 'hidden',
         transition: 'all 0.2s ease',
@@ -60,18 +60,18 @@ const MetricCard = ({ title, value, icon, color, bgColor, progress, onClick }: M
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.65rem' }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.68rem' }}>
             {title}
           </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.25, lineHeight: 1 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.35, lineHeight: 1 }}>
             {value}
           </Typography>
         </Box>
         {icon && color && bgColor && (
           <Box
             sx={{
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               borderRadius: 1.5,
               bgcolor: bgColor,
               display: 'flex',
@@ -79,7 +79,7 @@ const MetricCard = ({ title, value, icon, color, bgColor, progress, onClick }: M
               justifyContent: 'center',
               color: color,
               flexShrink: 0,
-              '& > svg': { fontSize: '1.1rem' }
+              '& > svg': { fontSize: '1.15rem' }
             }}
           >
             {icon}
@@ -348,9 +348,8 @@ export const Dashboard = () => {
   const avgAccuracy = documents.length > 0 
     ? Math.round(documents.reduce((acc, d) => acc + (d.accuracy_score || 0), 0) / documents.length * 100) 
     : 0;
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flexGrow: 1 }}>
 
       {/* ───── HEADER ───── */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap', gap: 1.5 }}>

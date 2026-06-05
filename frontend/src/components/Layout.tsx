@@ -213,7 +213,9 @@ export const Layout = ({ children }: LayoutProps) => {
         <Box
           sx={{
             flexGrow: 1,
-            p: { xs: 2, sm: 3 },
+            pt: { xs: 2, sm: 3 },
+            px: { xs: 2, sm: 3 },
+            pb: '5px',
             overflow: 'auto',
             display: 'flex',
             flexDirection: 'column',
