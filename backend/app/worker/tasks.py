@@ -27,6 +27,16 @@ def process_document_pipeline(document_id: int, file_path: str):
         # 1. Extraction
         run_ocr_extraction(document_id, file_path)
         
+        # Check if extraction failed
+        db = SessionLocal()
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        status = doc.status if doc else "Failed"
+        db.close()
+        
+        if status == "Failed":
+            logger.error(f"Pipeline aborted for {document_id} because OCR extraction failed.")
+            return
+
         # 2. Validation (wait 5s)
         time.sleep(5)
         validate_document(document_id)
