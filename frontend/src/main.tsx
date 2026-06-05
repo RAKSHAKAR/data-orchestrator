@@ -16,14 +16,27 @@ async function init() {
     console.error("Could not fetch initial settings for MSAL", e);
   }
 
-  const msalInstance = new PublicClientApplication(msalConfig);
-  await msalInstance.initialize();
+  let msalInstance: PublicClientApplication | null = null;
+  try {
+    // Ensure we have a valid GUID format even if placeholder, to prevent MSAL from throwing on init
+    if (msalConfig.auth.clientId === "PLACEHOLDER-CLIENT-ID") {
+      msalConfig.auth.clientId = "11111111-1111-1111-1111-111111111111";
+    }
+    msalInstance = new PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
+  } catch (e) {
+    console.error("MSAL Initialization failed", e);
+  }
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <MsalProvider instance={msalInstance}>
+      {msalInstance ? (
+        <MsalProvider instance={msalInstance}>
+          <App />
+        </MsalProvider>
+      ) : (
         <App />
-      </MsalProvider>
+      )}
     </StrictMode>,
   )
 }
