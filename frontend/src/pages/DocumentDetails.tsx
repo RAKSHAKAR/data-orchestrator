@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Tabs, Tab, Paper, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, Switch, Accordion, AccordionSummary,
-  AccordionDetails, IconButton, Tooltip, Breadcrumbs, Link, useTheme, Divider
+  AccordionDetails, IconButton, Breadcrumbs, Link, useTheme, Divider
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TrackedField } from '../components/TrackedField';
@@ -90,6 +90,22 @@ export const DocumentDetails = () => {
   const [editedFields, setEditedFields] = useState<string[]>([]);
   const [validationData, setValidationData] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [allDocs, setAllDocs] = useState<any[]>([]);
+  const [showAiIcons, setShowAiIcons] = useState(true);
+
+  useEffect(() => {
+    const fetchAllDocs = async () => {
+      try {
+        const docs = await documentApi.getDocuments();
+        setAllDocs(docs);
+      } catch(e) {}
+    };
+    fetchAllDocs();
+  }, []);
+
+  const currentIndex = allDocs.findIndex(d => String(d.id) === String(_id));
+  const prevDocId = currentIndex > 0 ? allDocs[currentIndex - 1].id : null;
+  const nextDocId = currentIndex !== -1 && currentIndex < allDocs.length - 1 ? allDocs[currentIndex + 1].id : null;
 
   const [formData, setFormData] = useState({
     documentDate: 'N/A', processingDate: 'N/A', receivedDate: 'N/A',
@@ -156,36 +172,47 @@ export const DocumentDetails = () => {
 
   const handleSave = async () => {
     if (!_id) return;
+    
+    // Validate all fields before saving
+    for (const [key, value] of Object.entries(formData)) {
+      const errorMsg = getValidationRule(key as keyof typeof formData)(value);
+      if (errorMsg) {
+        setToast({ open: true, message: `Cannot save. Please fix the validation error in ${key.replace(/([A-Z])/g, ' $1').trim()}`, severity: 'error' });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      // Map formData back to backend schema format (snake_case)
+      const getVal = (v: string) => (v === 'N/A' || v === '') ? null : v;
+      
       const updateData = {
-        document_date: formData.documentDate,
-        processing_date: formData.processingDate,
-        received_date: formData.receivedDate,
-        claim_number: formData.claimNumber,
-        claimant_name: formData.claimantName,
-        claimant_number: formData.claimantNumber,
-        date_of_loss: formData.dateOfLoss,
-        policy_number: formData.policyNumber,
-        amount_paid: formData.amountPaid,
-        amount_billed: formData.amountBilled,
-        eighty_percent_amount_billed: formData.eightyPercentAmountBilled,
-        amount_owed: formData.amountOwed,
-        provider: formData.provider,
-        provider_vendor_id: formData.providerVendorId,
-        firm_name: formData.firmName,
-        firm_address: formData.firmAddress,
-        firm_vendor_id: formData.firmVendorId,
-        envelope_type: formData.envelopeType,
-        certified_mail: formData.certifiedMail,
-        certification_number: formData.certificationNumber,
-        documents_in_envelope: formData.documentsInEnvelope,
-        total_postage_cost: formData.totalPostageCost,
-        postage_cost_per_document: formData.postageCostPerDocument,
-        date_of_service_from: formData.dateOfServiceFrom,
-        date_of_service_to: formData.dateOfServiceTo,
-        assignment_of_benefit: formData.assignmentOfBenefit,
+        document_date: getVal(formData.documentDate),
+        processing_date: getVal(formData.processingDate),
+        received_date: getVal(formData.receivedDate),
+        claim_number: getVal(formData.claimNumber),
+        claimant_name: getVal(formData.claimantName),
+        claimant_number: getVal(formData.claimantNumber),
+        date_of_loss: getVal(formData.dateOfLoss),
+        policy_number: getVal(formData.policyNumber),
+        amount_paid: getVal(formData.amountPaid),
+        amount_billed: getVal(formData.amountBilled),
+        eighty_percent_amount_billed: getVal(formData.eightyPercentAmountBilled),
+        amount_owed: getVal(formData.amountOwed),
+        provider: getVal(formData.provider),
+        provider_vendor_id: getVal(formData.providerVendorId),
+        firm_name: getVal(formData.firmName),
+        firm_address: getVal(formData.firmAddress),
+        firm_vendor_id: getVal(formData.firmVendorId),
+        envelope_type: getVal(formData.envelopeType),
+        certified_mail: getVal(formData.certifiedMail),
+        certification_number: getVal(formData.certificationNumber),
+        documents_in_envelope: getVal(formData.documentsInEnvelope),
+        total_postage_cost: getVal(formData.totalPostageCost),
+        postage_cost_per_document: getVal(formData.postageCostPerDocument),
+        date_of_service_from: getVal(formData.dateOfServiceFrom),
+        date_of_service_to: getVal(formData.dateOfServiceTo),
+        assignment_of_benefit: getVal(formData.assignmentOfBenefit),
       };
       await documentApi.updateExtractedData(_id, updateData);
       setIsEditing(false);
@@ -250,6 +277,28 @@ export const DocumentDetails = () => {
   const toSnakeCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
   const isFieldUpdated = (field: string) => auditLog.some((l) => l.field === field) || editedFields.includes(toSnakeCase(field));
 
+  const getValidationRule = (key: keyof typeof formData) => {
+    return (val: string) => {
+      if (!val || val === 'N/A') return '';
+      
+      if (['documentDate', 'processingDate', 'receivedDate', 'dateOfLoss', 'dateOfServiceFrom', 'dateOfServiceTo'].includes(key)) {
+        const dateRegex = /^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})$/;
+        if (!dateRegex.test(val)) {
+          return 'Use YYYY-MM-DD or MM/DD/YYYY format';
+        }
+      }
+
+      if (['amountPaid', 'amountBilled', 'eightyPercentAmountBilled', 'amountOwed', 'totalPostageCost', 'postageCostPerDocument'].includes(key)) {
+        const cleanVal = val.replace(/[\$,\s]/g, '');
+        if (isNaN(Number(cleanVal)) || cleanVal === '') {
+          return 'Enter a valid number or currency format';
+        }
+      }
+      
+      return '';
+    };
+  };
+
   const renderField = (key: keyof typeof formData, label: string) => (
     <TrackedField
       label={label}
@@ -258,7 +307,9 @@ export const DocumentDetails = () => {
       updatedBy={getFieldAudit(key)?.updatedBy}
       updatedOn={getFieldAudit(key)?.updatedOn}
       isManuallyUpdated={isFieldUpdated(key)}
+      showIcons={showAiIcons}
       isEditing={isEditing}
+      validate={getValidationRule(key)}
       onChange={(val) => handleFieldChange(key, val)}
     />
   );
@@ -298,13 +349,13 @@ export const DocumentDetails = () => {
       {/* ───── TOP ACTION BAR ───── */}
       <Paper elevation={0} sx={{ p: 2, px: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Tooltip title="Back to Documents">
-            <IconButton onClick={() => navigate('/documents')} size="small"><ArrowBackIcon fontSize="small" /></IconButton>
-          </Tooltip>
+          
+            <IconButton onClick={() => navigate('/')} size="small"><ArrowBackIcon fontSize="small" /></IconButton>
+          
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           <Box>
             <Breadcrumbs separator="›" sx={{ '& .MuiBreadcrumbs-separator': { mx: 0.5 } }}>
-              <Link underline="hover" color="text.secondary" sx={{ cursor: 'pointer', fontSize: '0.8125rem' }} onClick={() => navigate('/documents')}>Documents</Link>
+              <Link underline="hover" color="text.secondary" sx={{ cursor: 'pointer', fontSize: '0.8125rem' }} onClick={() => navigate('/')}>Dashboard</Link>
               <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600 }}>{document?.file_name || 'Document'}</Typography>
             </Breadcrumbs>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
@@ -314,25 +365,37 @@ export const DocumentDetails = () => {
           </Box>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-          <Tooltip title="View previous document"><IconButton size="small"><NavigateBeforeIcon /></IconButton></Tooltip>
-          <Tooltip title="View next document"><IconButton size="small"><NavigateNextIcon /></IconButton></Tooltip>
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-          {isEditing ? (
-            <Tooltip title="Save modifications to Dataverse">
-              <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </Tooltip>
-          ) : (
-            <Tooltip title="Enable manual editing of extracted fields">
-              <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} size="small">Edit</Button>
-            </Tooltip>
+          <IconButton 
+            size="small" 
+            disabled={!prevDocId} 
+            onClick={() => navigate(`/documents/${prevDocId}`)}
+          >
+            <NavigateBeforeIcon />
+          </IconButton>
+          <IconButton 
+            size="small" 
+            disabled={!nextDocId} 
+            onClick={() => navigate(`/documents/${nextDocId}`)}
+          >
+            <NavigateNextIcon />
+          </IconButton>
+          {tabValue === 0 && (
+            <>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+              {isEditing ? (
+                <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} size="small" disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              ) : (
+                <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} size="small">Edit</Button>
+              )}
+            </>
           )}
-          <Tooltip title="Re-check validation rules against external system">
+          
             <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>
               {actionLoading ? 'Validating...' : 'Trigger Validation'}
             </Button>
-          </Tooltip>
+          
         </Box>
       </Paper>
 
@@ -357,12 +420,12 @@ export const DocumentDetails = () => {
           {/* AI Status Bar */}
           <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Tooltip title="AI Bot is active and extracted data from PDF"><SmartToyOutlinedIcon sx={{ color: '#059669' }} /></Tooltip>
+              <SmartToyOutlinedIcon sx={{ color: '#059669' }} />
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>AI Bot Extraction</Typography>
                 <Typography variant="caption" color="text.secondary">All fields extracted via OCR + AI</Typography>
               </Box>
-              <Switch defaultChecked color="success" size="small" />
+              <Switch checked={showAiIcons} onChange={(e) => setShowAiIcons(e.target.checked)} color="success" size="small" />
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
@@ -474,8 +537,8 @@ export const DocumentDetails = () => {
               <Typography variant="body2" color="text.secondary">Compare extracted data with Guidewire records</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              {!validationData && <Tooltip title="This API connection has not yet been validated"><Button variant="outlined" size="small">API Not Validated</Button></Tooltip>}
-              <Tooltip title="Re-check validation rules against external system"><Button variant="contained" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>Trigger Validation</Button></Tooltip>
+              {!validationData && <Button variant="outlined" size="small">API Not Validated</Button>}
+              <Button variant="contained" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>Trigger Validation</Button>
             </Box>
           </Box>
 
@@ -497,9 +560,9 @@ export const DocumentDetails = () => {
                     <TableCell sx={{ color: row.fromGuidewire === 'N/A' ? 'text.secondary' : 'text.primary' }}>{row.fromGuidewire}</TableCell>
                     <TableCell align="center">
                       {row.match ? (
-                        <Tooltip title="Data matches external system"><Chip icon={<CheckCircleOutlineIcon sx={{ fontSize: 14 }} />} label="Match" size="small" sx={{ color: '#059669', bgcolor: '#ecfdf5', border: '1px solid #05966930', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#059669' } }} /></Tooltip>
+                        <Chip icon={<CheckCircleOutlineIcon sx={{ fontSize: 14 }} />} label="Match" size="small" sx={{ color: '#059669', bgcolor: '#ecfdf5', border: '1px solid #05966930', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#059669' } }} />
                       ) : (
-                        <Tooltip title="Data mismatch with external system. Manual review required."><Chip icon={<WarningAmberIcon sx={{ fontSize: 14 }} />} label="Mismatch" size="small" sx={{ color: '#dc2626', bgcolor: '#fef2f2', border: '1px solid #dc262630', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#dc2626' } }} /></Tooltip>
+                        <Chip icon={<WarningAmberIcon sx={{ fontSize: 14 }} />} label="Mismatch" size="small" sx={{ color: '#dc2626', bgcolor: '#fef2f2', border: '1px solid #dc262630', fontWeight: 600, fontSize: '0.75rem', height: 26, '& .MuiChip-icon': { color: '#dc2626' } }} />
                       )}
                     </TableCell>
                   </TableRow>
@@ -509,7 +572,7 @@ export const DocumentDetails = () => {
           </TableContainer>
 
           <Paper elevation={0} sx={{ mt: 4, p: 4, border: `2px dashed ${theme.palette.divider}`, textAlign: 'center' }}>
-            <Tooltip title={document?.status === 'VALIDATED' ? "Send validated data to Guidewire" : "Cannot send until all mismatches are resolved"}>
+            
               <span>
                 <Button 
                   disabled={document?.status !== 'VALIDATED' || actionLoading} 
@@ -521,7 +584,7 @@ export const DocumentDetails = () => {
                   Send to Guidewire
                 </Button>
               </span>
-            </Tooltip>
+            
             <Typography variant="body2" color="text.secondary">
               {document?.status === 'VALIDATED' 
                 ? 'Document is fully validated and ready to be sent.' 

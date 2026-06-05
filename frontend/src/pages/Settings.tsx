@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Alert, Snackbar, InputAdornment, IconButton } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, Alert, Snackbar, InputAdornment, IconButton, Switch, FormControlLabel } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import MicrosoftIcon from '@mui/icons-material/Window';
-import CloudSyncIcon from '@mui/icons-material/CloudSync';
+import HomeIcon from '@mui/icons-material/Home';
+import { Link } from 'react-router-dom';
+
 import { settingsApi } from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
+import { useMsal } from '@azure/msal-react';
+import { loginRequest } from '../authConfig';
 
 export const Settings = () => {
   const [sharepointUrl, setSharepointUrl] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [guidewireUrl, setGuidewireUrl] = useState('');
   const [guidewireApiKey, setGuidewireApiKey] = useState('');
+  const [azureClientId, setAzureClientId] = useState('');
+  const [azureTenantId, setAzureTenantId] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [showGuidewireKey, setShowGuidewireKey] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -19,8 +25,11 @@ export const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [validatingOpenAI, setValidatingOpenAI] = useState(false);
   const [validatingGuidewire, setValidatingGuidewire] = useState(false);
+  const [validatingSharepoint, setValidatingSharepoint] = useState(false);
+  const [syncEnabled, setSyncEnabled] = useState(false);
   
   const { user } = useAuthStore();
+  const { instance, accounts } = useMsal();
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -30,7 +39,9 @@ export const Settings = () => {
         setOpenaiApiKey(data.openai_api_key || '');
         setGuidewireUrl(data.guidewire_api_url || '');
         setGuidewireApiKey(data.guidewire_api_key || '');
-        setIsAuthenticated(data.is_authenticated);
+        setAzureClientId(data.azure_client_id || '');
+        setAzureTenantId(data.azure_tenant_id || '');
+        setSyncEnabled(data.sync_enabled || false);
       } catch (e) {
         console.error("Failed to load settings", e);
       }
@@ -38,10 +49,14 @@ export const Settings = () => {
     fetchSettings();
   }, []);
 
+  useEffect(() => {
+    setIsAuthenticated(accounts.length > 0);
+  }, [accounts]);
+
   const handleSaveUrl = async () => {
     try {
-      await settingsApi.updateSettings(sharepointUrl, openaiApiKey, guidewireUrl, guidewireApiKey);
-      setToast({ open: true, message: 'Settings saved successfully', severity: 'success' });
+      await settingsApi.updateSettings(sharepointUrl, openaiApiKey, guidewireUrl, guidewireApiKey, azureClientId, azureTenantId);
+      setToast({ open: true, message: 'Settings saved successfully. Please refresh the page to apply Azure changes.', severity: 'success' });
     } catch (e) {
       setToast({ open: true, message: 'Failed to save settings', severity: 'error' });
     }
@@ -49,31 +64,70 @@ export const Settings = () => {
 
   const handleAuth = async () => {
     try {
-      await settingsApi.authenticateMicrosoft();
-      setIsAuthenticated(true);
+      await instance.loginPopup(loginRequest);
       setToast({ open: true, message: 'Successfully authenticated with Microsoft!', severity: 'success' });
     } catch (e) {
+      console.error(e);
       setToast({ open: true, message: 'Authentication failed', severity: 'error' });
     }
   };
 
-  const handleSimulateUpload = async () => {
-    if (!isAuthenticated || !sharepointUrl) {
-      setToast({ open: true, message: 'Please authenticate and configure a URL first', severity: 'error' });
-      return;
+  const handleSignOut = async () => {
+    try {
+      await instance.logoutPopup();
+      setToast({ open: true, message: 'Successfully signed out from Microsoft!', severity: 'success' });
+    } catch (e) {
+      console.error(e);
+      setToast({ open: true, message: 'Sign out failed', severity: 'error' });
     }
+  };
+
+  const handleToggleSync = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = event.target.checked;
     setLoading(true);
     try {
-      const response = await settingsApi.simulateSharepointUpload();
-      if (response.status === 'success') {
-        setToast({ open: true, message: 'SharePoint sync simulated successfully! Processing triggered.', severity: 'success' });
-      } else {
-        setToast({ open: true, message: response.message, severity: 'error' });
+      let accessToken = '';
+      if (checked) {
+        const response = await instance.acquireTokenSilent({
+          ...loginRequest,
+          account: accounts[0]
+        });
+        accessToken = response.accessToken;
       }
+      await settingsApi.toggleSync(checked, accessToken);
+      setSyncEnabled(checked);
+      setToast({ open: true, message: checked ? 'Background Sync Enabled!' : 'Background Sync Disabled.', severity: 'success' });
     } catch (e) {
-      setToast({ open: true, message: 'Failed to sync with SharePoint', severity: 'error' });
+      console.error(e);
+      setToast({ open: true, message: 'Failed to update sync settings. Ensure you are signed in.', severity: 'error' });
+      setSyncEnabled(!checked); // revert
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestSharepoint = async () => {
+    if (!isAuthenticated) {
+      setToast({ open: true, message: 'Please Sign In with Microsoft first', severity: 'error' });
+      return;
+    }
+    setValidatingSharepoint(true);
+    try {
+      const response = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0]
+      });
+      const res = await settingsApi.testSharepoint(sharepointUrl, response.accessToken);
+      if (res.status === 'success') {
+        setToast({ open: true, message: res.message, severity: 'success' });
+      } else {
+        setToast({ open: true, message: res.message, severity: 'error' });
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({ open: true, message: 'Failed to test SharePoint connection. Check your URL.', severity: 'error' });
+    } finally {
+      setValidatingSharepoint(false);
     }
   };
 
@@ -120,7 +174,12 @@ export const Settings = () => {
 
   return (
     <Box sx={{ p: 3, margin: '0 auto', width: '100%' }}>
-      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold' }}>Settings</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+        <IconButton component={Link} to="/" sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }}>
+          <HomeIcon />
+        </IconButton>
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>Settings</Typography>
+      </Box>
       
       <Paper elevation={0} sx={{ p: 4, border: '1px solid #e2e8f0', borderRadius: 2, mb: 4 }}>
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>SharePoint Integration</Typography>
@@ -146,6 +205,11 @@ export const Settings = () => {
               }
             }}
           />
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 4 }}>
+          <Button variant="outlined" color="primary" onClick={handleTestSharepoint} disabled={!sharepointUrl || !isAuthenticated || validatingSharepoint}>
+            {validatingSharepoint ? 'Testing...' : 'Test Connection'}
+          </Button>
         </Box>
 
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>AI Vision Extraction</Typography>
@@ -258,6 +322,31 @@ export const Settings = () => {
         </Box>
 
         <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Microsoft Authentication</Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+          Configure your Azure Entra ID App credentials. (Save and refresh the page to apply before signing in).
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+          <TextField
+            fullWidth
+            label="Azure Client ID"
+            variant="outlined"
+            size="small"
+            value={azureClientId}
+            onChange={(e) => setAzureClientId(e.target.value)}
+            placeholder="00000000-0000-0000-0000-000000000000"
+          />
+          <TextField
+            fullWidth
+            label="Azure Tenant ID"
+            variant="outlined"
+            size="small"
+            value={azureTenantId}
+            onChange={(e) => setAzureTenantId(e.target.value)}
+            placeholder="00000000-0000-0000-0000-000000000000 (or 'common')"
+          />
+        </Box>
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           {isAuthenticated ? (
             <Alert severity="success" sx={{ flexGrow: 1 }}>Authenticated with Microsoft Entra ID</Alert>
@@ -265,32 +354,44 @@ export const Settings = () => {
             <Alert severity="info" sx={{ flexGrow: 1 }}>Not Authenticated. Please sign in to connect SharePoint.</Alert>
           )}
           
-          <Button 
-            variant="outlined" 
-            startIcon={<MicrosoftIcon />}
-            onClick={handleAuth}
-            disabled={isAuthenticated}
-          >
-            {isAuthenticated ? 'Signed In' : 'Sign In with Microsoft'}
-          </Button>
+          {isAuthenticated ? (
+            <Button 
+              variant="outlined" 
+              color="error"
+              startIcon={<MicrosoftIcon />}
+              onClick={handleSignOut}
+            >
+              Sign Out
+            </Button>
+          ) : (
+            <Button 
+              variant="outlined" 
+              startIcon={<MicrosoftIcon />}
+              onClick={handleAuth}
+            >
+              Sign In with Microsoft
+            </Button>
+          )}
         </Box>
 
       </Paper>
 
       <Paper elevation={0} sx={{ p: 4, border: '1px solid #e2e8f0', borderRadius: 2, backgroundColor: '#f8fafc' }}>
-         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Simulate Automated Trigger</Typography>
+         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Automated SharePoint Sync</Typography>
          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-           For the purpose of this demo, you can click the button below to manually simulate the automated webhook trigger that would occur when a new file drops into the configured SharePoint folder.
+           Turn on automated sync to continuously monitor the SharePoint folder and process new files in the background. Requires you to be Signed In.
          </Typography>
-         <Button 
-            variant="contained" 
-            color="success" 
-            startIcon={<CloudSyncIcon />}
-            onClick={handleSimulateUpload}
-            disabled={loading || !isAuthenticated || !sharepointUrl}
-          >
-            Simulate Auto-Sync from SharePoint
-          </Button>
+         <FormControlLabel
+           control={
+             <Switch
+               checked={syncEnabled}
+               onChange={handleToggleSync}
+               disabled={loading || !isAuthenticated || !sharepointUrl}
+               color="success"
+             />
+           }
+           label={syncEnabled ? "Sync is ON (Background Polling Active)" : "Sync is OFF"}
+         />
       </Paper>
 
       <Snackbar 

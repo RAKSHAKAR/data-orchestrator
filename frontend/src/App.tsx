@@ -7,10 +7,8 @@ import { useAuthStore } from './store/useAuthStore';
 import { Layout } from './components/Layout';
 
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
-const DocumentList = React.lazy(() => import('./pages/DocumentList').then(m => ({ default: m.DocumentList })));
 const DocumentDetails = React.lazy(() => import('./pages/DocumentDetails').then(m => ({ default: m.DocumentDetails })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const Upload = React.lazy(() => import('./pages/Upload').then(m => ({ default: m.Upload })));
 const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
 const SuspenseLoader = () => (
@@ -39,9 +37,7 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/documents" element={<DocumentList />} />
                     <Route path="/documents/:id" element={<DocumentDetails />} />
-                    <Route path="/upload" element={<Upload />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

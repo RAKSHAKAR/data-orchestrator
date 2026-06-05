@@ -22,21 +22,69 @@ def read_documents(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     docs = db.query(Document).order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
     return docs
 
+@router.get("/sample/download")
+def download_sample_pdf():
+    sample_path = os.path.join(UPLOAD_DIR, "Sample", "sample.pdf")
+    if not os.path.exists(sample_path):
+        raise HTTPException(status_code=404, detail="Sample PDF not found")
+    return FileResponse(
+        sample_path, 
+        media_type="application/pdf", 
+        filename="sample.pdf",
+        content_disposition_type="attachment"
+    )
+
 import pandas as pd
 from io import BytesIO
 
-@router.get("/export/excel")
-def export_documents_excel(db: Session = Depends(get_db)):
-    docs = db.query(Document).all()
+@router.post("/export/excel")
+def export_documents_excel(data: dict, db: Session = Depends(get_db)):
+    document_ids = data.get("document_ids", [])
+    if document_ids:
+        docs = db.query(Document).filter(Document.id.in_(document_ids)).all()
+    else:
+        docs = db.query(Document).all()
     
+    # Convert standard headers to Title Case
     headers = ["ID", "File Name", "Status", "Confidence", "Accuracy", "Created At"]
-    field_names = [
-        "claim_number", "claimant_name", "firm_name", "provider", "amount_owed", 
-        "certified_mail", "firm_address", "amount_billed", "amount_paid", 
-        "no_of_documents_in_envelope", "policy_number", "dol", "certification_number", 
-        "document_date", "assignment_of_benefit", "eighty_percent_amount_billed", 
-        "date_of_service_from", "date_of_service_to", "envelope_type", "total_postage_cost"
-    ]
+    
+    field_mapping = {
+        "document_date": "Document Date",
+        "processing_date": "Processing Date",
+        "received_date": "Received Date",
+        
+        "claim_number": "Claim Number",
+        "claimant_name": "Claimant Name",
+        "claimant_number": "Claimant Number",
+        "policy_number": "Policy Number",
+        "date_of_loss": "Date of Loss",
+        
+        "firm_name": "Firm Name",
+        "firm_address": "Firm Address",
+        "firm_vendor_id": "Firm Vendor ID",
+        
+        "provider": "Provider",
+        "provider_vendor_id": "Provider Vendor ID",
+        
+        "amount_billed": "Amount Billed",
+        "eighty_percent_amount_billed": "80% Amount Billed",
+        "amount_owed": "Amount Owed",
+        "amount_paid": "Amount Paid",
+        
+        "date_of_service_from": "Service Date From",
+        "date_of_service_to": "Service Date To",
+        
+        "envelope_type": "Envelope Type",
+        "certified_mail": "Certified Mail",
+        "certification_number": "Certification Number",
+        "documents_in_envelope": "Documents in Envelope",
+        "total_postage_cost": "Total Postage Cost",
+        "postage_cost_per_document": "Postage Cost Per Doc",
+        "assignment_of_benefit": "Assignment of Benefit"
+    }
+    
+    db_fields = list(field_mapping.keys())
+    excel_headers = list(field_mapping.values())
     
     rows = []
     for doc in docs:
@@ -46,14 +94,14 @@ def export_documents_excel(db: Session = Depends(get_db)):
             doc.id, doc.file_name, doc.status, doc.confidence_score, doc.accuracy_score, created_at_str
         ]
         if doc.extracted_data:
-            for field in field_names:
+            for field in db_fields:
                 row.append(getattr(doc.extracted_data, field, ""))
         else:
-            row.extend([""] * len(field_names))
+            row.extend([""] * len(db_fields))
             
         rows.append(row)
 
-    df = pd.DataFrame(rows, columns=headers + field_names)
+    df = pd.DataFrame(rows, columns=headers + excel_headers)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Documents')

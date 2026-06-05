@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton, Tooltip } from '@mui/material';
+import { Box, Paper, Typography, TextField, Button, Alert, InputAdornment, IconButton } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { authApi } from '../services/api';
@@ -146,11 +146,11 @@ export const Login = () => {
                 startAdornment: <InputAdornment position="start"><LockOutlinedIcon fontSize="small" sx={{ color: '#64748b' }} /></InputAdornment>,
                 endAdornment: (
                   <InputAdornment position="end">
-                    <Tooltip title={showPassword ? 'Hide password' : 'Show password'}>
+                    
                       <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small" sx={{ color: '#64748b' }}>
                         {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                       </IconButton>
-                    </Tooltip>
+                    
                   </InputAdornment>
                 ),
               }

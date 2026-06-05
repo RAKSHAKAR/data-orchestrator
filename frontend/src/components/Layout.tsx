@@ -2,13 +2,13 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box, Drawer, AppBar, Toolbar, Typography, List, ListItemButton, ListItemIcon,
-  ListItemText, IconButton, useTheme, Avatar, Divider, Tooltip, Badge,
-  Menu, MenuItem
+  ListItemText, IconButton, useTheme, Avatar, Divider, Badge,
+  Menu, MenuItem, useMediaQuery
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import DescriptionIcon from '@mui/icons-material/Description';
+
 import SettingsIcon from '@mui/icons-material/Settings';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
@@ -16,7 +16,6 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
@@ -34,7 +33,9 @@ export const Layout = ({ children }: LayoutProps) => {
   const theme = useTheme();
   const { logout, user } = useAuthStore();
   const { toggleDarkMode } = useStore();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationAnchorEl, setNotificationAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleNotificationClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -49,13 +50,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-    { text: 'Documents', icon: <DescriptionIcon />, path: '/documents' },
-    { text: 'Upload', icon: <UploadFileIcon />, path: '/upload' },
   ];
-
-  if (user?.role === 'admin') {
-    menuItems.push({ text: 'Settings', icon: <SettingsIcon />, path: '/settings' });
-  }
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -77,13 +72,8 @@ export const Layout = ({ children }: LayoutProps) => {
         }}
       >
         <Toolbar sx={{ gap: 1 }}>
-          <Tooltip title={drawerOpen ? "Collapse sidebar" : "Expand sidebar"}>
-            <IconButton onClick={() => setDrawerOpen(!drawerOpen)} edge="start" size="small" sx={{ mr: 1 }}>
-              {drawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
-            </IconButton>
-          </Tooltip>
 
-          <Tooltip title="Go to Dashboard">
+          
             <Typography
               variant="h6"
               noWrap
@@ -99,17 +89,17 @@ export const Layout = ({ children }: LayoutProps) => {
             >
               Data Orchestrator
             </Typography>
-          </Tooltip>
+          
 
           <Box sx={{ flexGrow: 1 }} />
 
-          <Tooltip title="View pending notifications">
+          
             <IconButton size="small" onClick={handleNotificationClick} sx={{ color: theme.palette.text.secondary }}>
               <Badge badgeContent={2} color="error" variant="dot">
                 <NotificationsNoneIcon fontSize="small" />
               </Badge>
             </IconButton>
-          </Tooltip>
+          
           
           <Menu
             anchorEl={notificationAnchorEl}
@@ -141,12 +131,23 @@ export const Layout = ({ children }: LayoutProps) => {
               }
             }}
           >
-            <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>Notifications</Typography>
+            <Box sx={{ p: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Notifications</Typography>
+              <Typography variant="caption" sx={{ color: 'primary.main', cursor: 'pointer', fontWeight: 600 }}>Mark all read</Typography>
             </Box>
-            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+            <Divider />
+            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
               <ListItemIcon>
                 <WarningAmberIcon color="warning" />
+              </ListItemIcon>
+              <ListItemText 
+                primary={<Typography variant="body2" sx={{ fontWeight: 600 }}>Low Confidence Score</Typography>}
+                secondary={<Typography variant="caption" color="text.secondary">Document 'Invoice_492.pdf' has 72% confidence.</Typography>}
+              />
+            </MenuItem>
+            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
+              <ListItemIcon>
+                <DashboardIcon color="info" />
               </ListItemIcon>
               <ListItemText 
                 primary={<Typography variant="body2" sx={{ fontWeight: 600 }}>Document Pending</Typography>}
@@ -167,15 +168,20 @@ export const Layout = ({ children }: LayoutProps) => {
             </Box>
           </Menu>
 
-          <Tooltip title={theme.palette.mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
+          
+            {user?.role === 'admin' && (
+              <IconButton onClick={() => navigate('/settings')} size="small" sx={{ color: theme.palette.text.secondary }}>
+                <SettingsIcon fontSize="small" />
+              </IconButton>
+            )}
             <IconButton onClick={toggleDarkMode} size="small" sx={{ color: theme.palette.text.secondary }}>
               {theme.palette.mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
             </IconButton>
-          </Tooltip>
+          
 
           <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 1 }} />
 
-          <Tooltip title="Current user profile">
+          
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }}>
               <Avatar
                 sx={{
@@ -197,9 +203,9 @@ export const Layout = ({ children }: LayoutProps) => {
                 </Typography>
               </Box>
             </Box>
-          </Tooltip>
+          
 
-          <Tooltip title="Sign Out">
+          
             <IconButton
               onClick={() => { logout(); navigate('/login'); }}
               size="small"
@@ -207,99 +213,21 @@ export const Layout = ({ children }: LayoutProps) => {
             >
               <LogoutIcon fontSize="small" />
             </IconButton>
-          </Tooltip>
+          
         </Toolbar>
       </AppBar>
 
-      {/* SIDEBAR */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          width: currentDrawerWidth,
-          flexShrink: 0,
-          transition: 'width 0.2s ease',
-          '& .MuiDrawer-paper': {
-            width: currentDrawerWidth,
-            boxSizing: 'border-box',
-            borderRight: `1px solid ${theme.palette.divider}`,
-            bgcolor: theme.palette.background.paper,
-            transition: 'width 0.2s ease',
-            overflowX: 'hidden',
-          },
-        }}
-      >
-        <Toolbar />
-        <Box sx={{ mt: 2, px: drawerOpen ? 1.5 : 0.75 }}>
-          {drawerOpen && (
-            <Typography
-              variant="overline"
-              sx={{ px: 1.5, mb: 1, display: 'block', color: theme.palette.text.secondary, fontSize: '0.65rem' }}
-            >
-              Navigation
-            </Typography>
-          )}
-          <List disablePadding>
-            {menuItems.map((item) => {
-              const active = isActive(item.path);
-              return (
-                <ListItemButton
-                  key={item.text}
-                  onClick={() => navigate(item.path)}
-                  selected={active}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 0.5,
-                    py: 1,
-                    px: drawerOpen ? 1.5 : 'auto',
-                    justifyContent: drawerOpen ? 'initial' : 'center',
-                    minHeight: 44,
-                    '&.Mui-selected': {
-                      bgcolor: `${theme.palette.primary.main}14`,
-                      color: theme.palette.primary.main,
-                      '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
-                      '&:hover': { bgcolor: `${theme.palette.primary.main}20` },
-                    },
-                    '&:hover': { bgcolor: theme.palette.action.hover },
-                  }}
-                >
-                  <Tooltip title={drawerOpen ? '' : `Go to ${item.text}`} placement="right">
-                    <ListItemIcon
-                      sx={{
-                        minWidth: drawerOpen ? 36 : 'auto',
-                        mr: drawerOpen ? 1 : 0,
-                        justifyContent: 'center',
-                        color: active ? theme.palette.primary.main : theme.palette.text.secondary,
-                      }}
-                    >
-                      {item.icon}
-                    </ListItemIcon>
-                  </Tooltip>
-                  {drawerOpen && (
-                    <ListItemText
-                      primary={
-                        <Typography sx={{ fontSize: '0.875rem', fontWeight: active ? 600 : 500 }}>
-                          {item.text}
-                        </Typography>
-                      }
-                    />
-                  )}
-                </ListItemButton>
-              );
-            })}
-          </List>
-        </Box>
-      </Drawer>
+
 
       {/* MAIN CONTENT */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          width: `calc(100% - ${currentDrawerWidth}px)`,
+          width: '100%',
           minHeight: '100vh',
           display: 'flex',
           flexDirection: 'column',
-          transition: 'width 0.2s ease',
         }}
       >
         <Toolbar />

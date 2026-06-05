@@ -75,7 +75,27 @@ export const documentApi = {
     const response = await api.post(`/documents/bulk_send_guidewire`, { document_ids: documentIds });
     return response.data;
   },
-  exportExcelUrl: `${api.defaults.baseURL}/documents/export/excel`,
+  exportExcel: async (documentIds: number[]) => {
+    const response = await fetch(`${api.defaults.baseURL}/documents/export/excel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${useAuthStore.getState().token}`,
+      },
+      body: JSON.stringify({ document_ids: documentIds }),
+    });
+    if (!response.ok) throw new Error('Failed to export excel');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'documents_export.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+  downloadSampleUrl: `${api.defaults.baseURL}/documents/sample/download`,
 
   uploadDocument: async (file: File) => {
     const formData = new FormData();
@@ -109,11 +129,13 @@ export const settingsApi = {
     const response = await api.get('/settings/');
     return response.data;
   },
-  updateSettings: async (sharepointUrl: string, openaiApiKey?: string, guidewireUrl?: string, guidewireApiKey?: string) => {
+  updateSettings: async (sharepointUrl: string, openaiApiKey?: string, guidewireUrl?: string, guidewireApiKey?: string, azureClientId?: string, azureTenantId?: string) => {
     const payload: any = { sharepoint_url: sharepointUrl };
     if (openaiApiKey) payload.openai_api_key = openaiApiKey;
     if (guidewireUrl) payload.guidewire_api_url = guidewireUrl;
     if (guidewireApiKey) payload.guidewire_api_key = guidewireApiKey;
+    if (azureClientId) payload.azure_client_id = azureClientId;
+    if (azureTenantId) payload.azure_tenant_id = azureTenantId;
     
     const response = await api.post('/settings/', payload);
     return response.data;
@@ -122,8 +144,16 @@ export const settingsApi = {
     const response = await api.post('/settings/auth');
     return response.data;
   },
-  simulateSharepointUpload: async () => {
-    const response = await api.post(`/settings/simulate_sharepoint_upload`);
+  signOutMicrosoft: async () => {
+    const response = await api.post('/settings/auth/logout');
+    return response.data;
+  },
+  testSharepoint: async (url: string, token: string) => {
+    const response = await api.post(`/settings/test_sharepoint`, { url, token });
+    return response.data;
+  },
+  toggleSync: async (enabled: boolean, token: string) => {
+    const response = await api.post(`/settings/toggle_sync`, { enabled, token });
     return response.data;
   },
   validateOpenai: async (apiKey: string) => {

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Paper, Button, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Chip, TextField, IconButton, MenuItem, Select,
-  FormControl, InputAdornment, LinearProgress, Tooltip, InputLabel,
-  TablePagination, useTheme
+  FormControl, InputAdornment, LinearProgress, InputLabel,
+  TablePagination, useTheme, TableSortLabel, Dialog, DialogTitle, DialogContent, CircularProgress
 } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -19,100 +19,106 @@ import PendingOutlinedIcon from '@mui/icons-material/PendingOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router-dom';
 import { documentApi } from '../services/api';
+import { useAuthStore } from '../store/useAuthStore';
 
 /* ───────── Metric Card ───────── */
 interface MetricCardProps {
   title: string;
   value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color: string;
-  bgColor: string;
+  icon?: React.ReactNode;
+  color?: string;
+  bgColor?: string;
   progress?: number;
+  onClick?: () => void;
 }
 
-const MetricCard = ({ title, value, icon, color, bgColor, progress }: MetricCardProps) => {
+const MetricCard = ({ title, value, icon, color, bgColor, progress, onClick }: MetricCardProps) => {
   const theme = useTheme();
   return (
-    <Tooltip title={`Metric: ${title} = ${value}`} arrow placement="top">
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2.5,
-          border: `1px solid ${theme.palette.divider}`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.5,
-          position: 'relative',
-          overflow: 'hidden',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
-          cursor: 'default',
-          '&:hover': {
-            borderColor: color,
-            boxShadow: `0 0 0 1px ${color}22`,
-          },
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.68rem' }}>
-              {title}
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.5, lineHeight: 1 }}>
-              {value}
-            </Typography>
-          </Box>
+    <Paper
+      elevation={0}
+      onClick={onClick}
+      sx={{
+        p: 1.5,
+        border: `1px solid ${theme.palette.divider}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'all 0.2s ease',
+        cursor: onClick ? 'pointer' : 'default',
+        '&:hover': onClick ? {
+          borderColor: color,
+          boxShadow: `0 0 0 1px ${color}22`,
+        } : {},
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Box>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.65rem' }}>
+            {title}
+          </Typography>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', mt: 0.25, lineHeight: 1 }}>
+            {value}
+          </Typography>
+        </Box>
+        {icon && color && bgColor && (
           <Box
             sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2,
+              width: 32,
+              height: 32,
+              borderRadius: 1.5,
               bgcolor: bgColor,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: color,
               flexShrink: 0,
+              '& > svg': { fontSize: '1.1rem' }
             }}
           >
             {icon}
           </Box>
-        </Box>
-        {progress !== undefined && (
-          <Box sx={{ mt: 'auto' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">{progress}%</Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{
-                height: 4,
-                borderRadius: 2,
-                bgcolor: `${color}15`,
-                '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 2 },
-              }}
-            />
-          </Box>
         )}
-      </Paper>
-    </Tooltip>
+      </Box>
+      {progress !== undefined && (
+        <Box sx={{ mt: 'auto' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">{progress}%</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progress}
+            sx={{
+              height: 4,
+              borderRadius: 2,
+              bgcolor: color ? `${color}15` : theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+              '& .MuiLinearProgress-bar': { bgcolor: color || theme.palette.primary.main, borderRadius: 2 },
+            }}
+          />
+        </Box>
+      )}
+    </Paper>
   );
 };
 
 /* ───────── Status Chip ───────── */
 const StatusChip = ({ status }: { status: string }) => {
-  const config: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-    COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
-    VALIDATED: { label: 'Validated', color: '#2563eb', bg: '#eff6ff', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
-    PENDING_VALIDATION: { label: 'Pending Validation', color: '#d97706', bg: '#fffbeb', icon: <PendingOutlinedIcon sx={{ fontSize: 14 }} /> },
-    DATAEXTRACTED: { label: 'Data Extracted', color: '#7c3aed', bg: '#f5f3ff', icon: <DescriptionOutlinedIcon sx={{ fontSize: 14 }} /> },
-    LOW_CONFIDENCE: { label: 'Low Confidence', color: '#dc2626', bg: '#fef2f2', icon: <WarningAmberIcon sx={{ fontSize: 14 }} /> },
-    FAILED: { label: 'Failed', color: '#dc2626', bg: '#fef2f2', icon: <ErrorOutlineIcon sx={{ fontSize: 14 }} /> },
-    PROCESSING: { label: 'Processing', color: '#0284c7', bg: '#f0f9ff', icon: <AccessTimeIcon sx={{ fontSize: 14 }} /> },
-    UPLOADED: { label: 'Uploaded', color: '#64748b', bg: '#f1f5f9', icon: <CloudUploadIcon sx={{ fontSize: 14 }} /> },
+  const config: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    COMPLETED: { label: 'Completed', color: '#059669', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
+    VALIDATED: { label: 'Validated', color: '#2563eb', icon: <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> },
+    PENDING_VALIDATION: { label: 'Pending Validation', color: '#d97706', icon: <InsertDriveFileOutlinedIcon sx={{ fontSize: 14 }} /> },
+    DATAEXTRACTED: { label: 'Data Extracted', color: '#7c3aed', icon: <DescriptionOutlinedIcon sx={{ fontSize: 14 }} /> },
+    LOW_CONFIDENCE: { label: 'Low Confidence', color: '#d97706', icon: <InsertDriveFileOutlinedIcon sx={{ fontSize: 14 }} /> },
+    FAILED: { label: 'Failed', color: '#dc2626', icon: <ErrorOutlineIcon sx={{ fontSize: 14 }} /> },
+    PROCESSING: { label: 'Processing', color: '#0284c7', icon: <AccessTimeIcon sx={{ fontSize: 14 }} /> },
+    UPLOADED: { label: 'Uploaded', color: '#64748b', icon: <CloudUploadIcon sx={{ fontSize: 14 }} /> },
   };
 
   const normalizedStatus = status.replace('_', '').toUpperCase();
@@ -123,13 +129,15 @@ const StatusChip = ({ status }: { status: string }) => {
       icon={c.icon as React.ReactElement}
       label={c.label}
       size="small"
+      variant="outlined"
       sx={{
         color: c.color,
-        bgcolor: c.bg,
-        border: `1px solid ${c.color}30`,
+        borderColor: c.color,
+        bgcolor: 'transparent',
         fontWeight: 600,
         fontSize: '0.75rem',
         height: 26,
+        borderRadius: 16,
         '& .MuiChip-icon': { color: c.color },
       }}
     />
@@ -138,14 +146,89 @@ const StatusChip = ({ status }: { status: string }) => {
 
 /* ───────── Dashboard Component ───────── */
 export const Dashboard = () => {
-  const navigate = useNavigate();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = user?.email === 'admin@demo.com' || user?.role === 'admin';
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  type Order = 'asc' | 'desc';
+  const [order, setOrder] = useState<Order>('desc');
+  const [orderBy, setOrderBy] = useState<string>('processing_date');
+
+  // Upload Modal State
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = (selectedFile: File) => {
+    if (selectedFile.type === 'application/pdf') {
+      setFile(selectedFile);
+    } else {
+      alert('Please select a PDF file.');
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      await documentApi.uploadDocument(file);
+      setUploadSuccess(true);
+      await fetchDocuments();
+      setTimeout(() => {
+        setUploadModalOpen(false);
+        setUploadSuccess(false);
+        setFile(null);
+      }, 1500);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRequestSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
 
   const fetchDocuments = async () => {
     try {
@@ -158,8 +241,17 @@ export const Dashboard = () => {
     }
   };
 
-  const handleExport = () => {
-    window.open(documentApi.exportExcelUrl, '_blank');
+  const handleExport = async () => {
+    try {
+      setLoading(true);
+      const documentIds = filteredDocs.map(d => d.id);
+      await documentApi.exportExcel(documentIds);
+    } catch (e) {
+      console.error('Failed to export', e);
+      alert('Failed to export to Excel.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBulkSend = async () => {
@@ -200,15 +292,56 @@ export const Dashboard = () => {
       (doc.extracted_data?.claim_number || '').includes(searchTerm) ||
       (doc.extracted_data?.claimant_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (doc.extracted_data?.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || doc.status.toUpperCase() === statusFilter.replace('_', '').toUpperCase() || doc.status.toUpperCase() === statusFilter.toUpperCase();
+    let matchesStatus = true;
+    if (statusFilter !== 'All') {
+      const docStatus = doc.status.toUpperCase();
+      matchesStatus = docStatus === statusFilter.replace('_', '').toUpperCase() || docStatus === statusFilter.toUpperCase();
+    }
+
     return matchesSearch && matchesStatus;
   });
 
-  const getMetric = (status: string) => documents.filter(d => d.status.toUpperCase() === status.toUpperCase()).length;
+  const sortedDocs = [...filteredDocs].sort((a, b) => {
+    let aVal: any = '';
+    let bVal: any = '';
+
+    switch (orderBy) {
+      case 'file_name':
+        aVal = a.file_name?.toLowerCase() || ''; bVal = b.file_name?.toLowerCase() || ''; break;
+      case 'claim_number':
+        aVal = a.extracted_data?.claim_number?.toLowerCase() || ''; bVal = b.extracted_data?.claim_number?.toLowerCase() || ''; break;
+      case 'claimant_name':
+        aVal = a.extracted_data?.claimant_name?.toLowerCase() || ''; bVal = b.extracted_data?.claimant_name?.toLowerCase() || ''; break;
+      case 'firm_name':
+        aVal = a.extracted_data?.firm_name?.toLowerCase() || ''; bVal = b.extracted_data?.firm_name?.toLowerCase() || ''; break;
+      case 'processing_date':
+        aVal = new Date(a.extracted_data?.processing_date || a.created_at).getTime() || 0; 
+        bVal = new Date(b.extracted_data?.processing_date || b.created_at).getTime() || 0; 
+        break;
+      case 'amount_billed':
+        aVal = parseFloat((a.extracted_data?.amount_billed || '0').replace(/[^0-9.-]+/g,""));
+        bVal = parseFloat((b.extracted_data?.amount_billed || '0').replace(/[^0-9.-]+/g,""));
+        break;
+      case 'confidence_score':
+        aVal = a.confidence_score || 0; bVal = b.confidence_score || 0; break;
+      case 'status':
+        aVal = a.status?.toLowerCase() || ''; bVal = b.status?.toLowerCase() || ''; break;
+    }
+
+    if (bVal < aVal) return order === 'desc' ? -1 : 1;
+    if (bVal > aVal) return order === 'desc' ? 1 : -1;
+    return 0;
+  });
+
+  const getMetric = (status: string) => documents.filter(d => d.status.replace('_', '').toUpperCase() === status.replace('_', '').toUpperCase()).length;
+  const uploadedCount = getMetric('UPLOADED');
+  const processingCount = getMetric('PROCESSING');
+  const extractedCount = getMetric('DATA_EXTRACTED');
+  const pendingValidationCount = getMetric('PENDING_VALIDATION');
+  const validatedCount = getMetric('VALIDATED');
   const completedCount = getMetric('COMPLETED');
-  const pendingCount = getMetric('PENDING_VALIDATION') + getMetric('PROCESSING') + getMetric('UPLOADED');
-  const extractedCount = getMetric('DATAEXTRACTED') + getMetric('DATA_EXTRACTED');
-  const failedCount = getMetric('FAILED') + getMetric('LOW_CONFIDENCE');
+  const lowConfidenceCount = getMetric('LOW_CONFIDENCE');
+  const failedCount = getMetric('FAILED');
 
   const avgConfidence = documents.length > 0 
     ? Math.round(documents.reduce((acc, d) => acc + (d.confidence_score || 0), 0) / documents.length * 100) 
@@ -218,65 +351,50 @@ export const Dashboard = () => {
     : 0;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 
       {/* ───── HEADER ───── */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, flexWrap: 'wrap', gap: 1.5 }}>
         <Box>
-          <Typography variant="h4" sx={{ color: 'text.primary' }}>Dashboard</Typography>
+          <Typography variant="h5" sx={{ color: 'text.primary', fontWeight: 700 }}>Dashboard</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Real-time document processing analytics and management
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Tooltip title="Export current view to Excel"><Button variant="outlined" startIcon={<DownloadIcon />} size="small" onClick={handleExport}>Export to Excel</Button></Tooltip>
-          <Tooltip title="Upload a new PDF document"><Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => navigate('/upload')}>Upload PDF</Button></Tooltip>
-          <Tooltip title="Send all validated documents to Guidewire">
-            <Button 
-              variant="contained" 
-              startIcon={<SendIcon />} 
-              size="small" 
-              onClick={handleBulkSend}
-              disabled={documents.filter(d => d.status.toUpperCase() === 'VALIDATED').length === 0 || loading}
-            >
-              Send Validated to Guidewire
-            </Button>
-          </Tooltip>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'nowrap', width: { xs: '100%', md: 'auto' } }}>
+          <Button variant="outlined" startIcon={<DownloadIcon />} size="small" onClick={handleExport} sx={{ flex: { xs: 1, sm: '0 0 auto' }, whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0.5, sm: 1 } } }}>Export</Button>
+          <Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => setUploadModalOpen(true)} sx={{ flex: { xs: 1, sm: '0 0 auto' }, whiteSpace: 'nowrap', minWidth: 0, '& .MuiButton-startIcon': { mr: { xs: 0.5, sm: 1 } } }}>Upload</Button>
         </Box>
       </Box>
 
-      {/* ───── METRICS GRID ───── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(7, 1fr)' }, gap: 2 }}>
-        <MetricCard title="Total Documents" value={documents.length} icon={<ArticleOutlinedIcon />} color="#2563eb" bgColor="#eff6ff" />
-        <MetricCard title="Completed" value={completedCount} icon={<CheckCircleOutlineIcon />} color="#059669" bgColor="#ecfdf5" />
-        <MetricCard title="Pending" value={pendingCount} icon={<PendingOutlinedIcon />} color="#d97706" bgColor="#fffbeb" />
-        <MetricCard title="Failed / Low Conf" value={failedCount} icon={<WarningAmberIcon />} color="#dc2626" bgColor="#fef2f2" />
-        <MetricCard title="Extracted" value={extractedCount} icon={<DescriptionOutlinedIcon />} color="#7c3aed" bgColor="#f5f3ff" />
-        <MetricCard title="AI Accuracy" value={`${avgAccuracy}%`} icon={<TrendingUpIcon />} color="#059669" bgColor="#ecfdf5" progress={avgAccuracy} />
-        <MetricCard title="AI Confidence" value={`${avgConfidence}%`} icon={<TrendingUpIcon />} color="#2563eb" bgColor="#eff6ff" progress={avgConfidence} />
-      </Box>
-
-      {/* ───── DATA GRID ───── */}
-      <Paper elevation={0} sx={{ flex: 1, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* Filter Bar */}
-        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#fafbfc', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-          <Tooltip title="Filter by File Name, Claim #, Claimant, or Firm"><TextField
+      {/* ───── TOP FILTER BAR ───── */}
+      <Paper elevation={0} sx={{ p: 1.5, border: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap', borderRadius: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Date</Typography>
+          <TextField
             size="small"
-            placeholder="Search documents..."
+            type="date"
+            sx={{ width: 160, '& .MuiOutlinedInput-root': { borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc' } }}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Search By</Typography>
+          <TextField
+            size="small"
+            placeholder="File Name / Claim # / Firm Name"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ minWidth: 280, flex: '0 1 350px', '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            slotProps={{
-              input: {
-                startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>,
-              },
-            }}
-          /></Tooltip>
-          <Tooltip title="Filter by processing status"><FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel>Status</InputLabel>
-            <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)} sx={{ borderRadius: 2 }}>
-              <MenuItem value="All">All Statuses</MenuItem>
+            sx={{ flexGrow: 1, maxWidth: 400, '& .MuiOutlinedInput-root': { borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc' } }}
+          />
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Status</Typography>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} sx={{ borderRadius: 1, bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc' }}>
+              <MenuItem value="All">All</MenuItem>
               <MenuItem value="UPLOADED">Uploaded</MenuItem>
               <MenuItem value="PROCESSING">Processing</MenuItem>
               <MenuItem value="DATA_EXTRACTED">Data Extracted</MenuItem>
@@ -286,43 +404,100 @@ export const Dashboard = () => {
               <MenuItem value="LOW_CONFIDENCE">Low Confidence</MenuItem>
               <MenuItem value="FAILED">Failed</MenuItem>
             </Select>
-          </FormControl></Tooltip>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-            {filteredDocs.length} document{filteredDocs.length !== 1 ? 's' : ''}
-          </Typography>
-          <Tooltip title="Refresh Document List">
-            <IconButton size="small" onClick={fetchDocuments} disabled={loading}>
-              <SyncIcon fontSize="small" sx={{ animation: loading ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '100%': { transform: 'rotate(360deg)' } } }} />
-            </IconButton>
-          </Tooltip>
+          </FormControl>
         </Box>
 
+        <IconButton size="small" onClick={fetchDocuments} disabled={loading} sx={{ ml: 'auto' }}>
+          <SyncIcon fontSize="large" sx={{ color: 'text.secondary', animation: loading ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '100%': { transform: 'rotate(360deg)' } } }} />
+        </IconButton>
+      </Paper>
+
+      {/* ───── LAYOUT CONTAINER ───── */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, flex: 1 }}>
+        
+        {/* LEFT COLUMN: METRICS & ACTIONS */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 2, 
+          width: { xs: '100%', md: '360px', lg: '420px' }, 
+          flexShrink: 0,
+          pr: { xs: 0, md: 1 }
+        }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+            <MetricCard title="Total Documents" value={documents.length} icon={<ArticleOutlinedIcon />} color="#2563eb" bgColor="#eff6ff" onClick={() => setStatusFilter('All')} />
+            <MetricCard title="Avg Time Taken" value="00:02:14" icon={<AccessTimeIcon />} color="#64748b" bgColor="#f1f5f9" />
+            <MetricCard title="Uploaded" value={uploadedCount} icon={<CloudUploadIcon />} color="#6366f1" bgColor="#e0e7ff" onClick={() => setStatusFilter('UPLOADED')} />
+            <MetricCard title="Processing" value={processingCount} icon={<SyncIcon />} color="#3b82f6" bgColor="#dbeafe" onClick={() => setStatusFilter('PROCESSING')} />
+            <MetricCard title="Extracted" value={extractedCount} icon={<DescriptionOutlinedIcon />} color="#8b5cf6" bgColor="#ede9fe" onClick={() => setStatusFilter('DATA_EXTRACTED')} />
+            <MetricCard title="Filtered Records" value={filteredDocs.length} icon={<SearchIcon />} color="#0ea5e9" bgColor="#e0f2fe" />
+            <MetricCard title="Pending Validation" value={pendingValidationCount} icon={<PendingOutlinedIcon />} color="#d97706" bgColor="#fffbeb" onClick={() => setStatusFilter('PENDING_VALIDATION')} />
+            <MetricCard title="Api Not Validated" value={getMetric('API_NOT_VALIDATED')} icon={<WarningAmberIcon />} color="#ef4444" bgColor="#fee2e2" onClick={() => setStatusFilter('API_NOT_VALIDATED')} />
+            <MetricCard title="Validated" value={validatedCount} icon={<CheckCircleOutlineIcon />} color="#059669" bgColor="#ecfdf5" onClick={() => setStatusFilter('VALIDATED')} />
+            <MetricCard title="Completed" value={completedCount} icon={<CheckCircleOutlineIcon />} color="#059669" bgColor="#ecfdf5" onClick={() => setStatusFilter('COMPLETED')} />
+            <MetricCard title="Low Confidence" value={lowConfidenceCount} icon={<WarningAmberIcon />} color="#f59e0b" bgColor="#fef3c7" onClick={() => setStatusFilter('LOW_CONFIDENCE')} />
+            <MetricCard title="Failed" value={failedCount} icon={<ErrorOutlineIcon />} color="#dc2626" bgColor="#fef2f2" onClick={() => setStatusFilter('FAILED')} />
+            <MetricCard title="AI Accuracy" value={`${avgAccuracy}%`} icon={<TrendingUpIcon />} color="#059669" bgColor="#ecfdf5" progress={avgAccuracy} />
+            <MetricCard title="AI Confidence" value={`${avgConfidence}%`} icon={<TrendingUpIcon />} color="#2563eb" bgColor="#eff6ff" progress={avgConfidence} />
+          </Box>
+
+          <Box sx={{ mt: 'auto', pt: 3, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
+            <Button 
+              variant="contained" 
+              size="small" 
+              sx={{ flex: 1, fontSize: '0.75rem', py: 1 }}
+              onClick={() => {
+                // Mock behavior: move pending to api not validated
+                alert('Moved PV files to API Not Validate');
+              }}
+            >
+              Move PV Files to API Not Validate
+            </Button>
+            <Button 
+              variant="contained" 
+              size="small" 
+              onClick={handleBulkSend}
+              disabled={documents.filter(d => d.status.toUpperCase() === 'VALIDATED').length === 0 || loading}
+              sx={{ flex: 1, fontSize: '0.75rem', py: 1 }}
+            >
+              Send Validated to Guidewire
+            </Button>
+          </Box>
+        </Box>
+
+        {/* RIGHT COLUMN: DATA GRID */}
+      <Paper elevation={0} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+
         {/* Table */}
-        <TableContainer sx={{ flex: 1, overflowX: 'auto' }}>
-          <Table stickyHeader sx={{ minWidth: 2000 }}>
+        <TableContainer sx={{ flex: 1, overflowX: 'auto', width: '100%' }}>
+          <Table sx={{ minWidth: 1000 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>File Name</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Document Date</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Claim Number</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Claimant Name</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Claimant Number</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Firm Name</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Firm Address</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Provider</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Policy Number</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Date of Loss</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Date of Service (From-To)</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Amount Billed</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>80% Amount Billed</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Amount Paid</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Amount Owed</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Total Postage Cost</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Certification Number</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Documents in Env</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap' }}>Status</TableCell>
-                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', position: 'sticky', right: 0, zIndex: 2 }} align="center">Actions</TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'file_name'} direction={orderBy === 'file_name' ? order : 'asc'} onClick={() => handleRequestSort('file_name')}>FILE NAME</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'claim_number'} direction={orderBy === 'claim_number' ? order : 'asc'} onClick={() => handleRequestSort('claim_number')}>CLAIM #</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'claimant_name'} direction={orderBy === 'claimant_name' ? order : 'asc'} onClick={() => handleRequestSort('claimant_name')}>CLAIMANT</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'firm_name'} direction={orderBy === 'firm_name' ? order : 'asc'} onClick={() => handleRequestSort('firm_name')}>FIRM NAME</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'processing_date'} direction={orderBy === 'processing_date' ? order : 'asc'} onClick={() => handleRequestSort('processing_date')}>PROCESSING DATE</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'amount_billed'} direction={orderBy === 'amount_billed' ? order : 'asc'} onClick={() => handleRequestSort('amount_billed')}>AMOUNT</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'confidence_score'} direction={orderBy === 'confidence_score' ? order : 'asc'} onClick={() => handleRequestSort('confidence_score')}>CONFIDENCE</TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>
+                  <TableSortLabel active={orderBy === 'status'} direction={orderBy === 'status' ? order : 'asc'} onClick={() => handleRequestSort('status')}>STATUS</TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : '#f8fafc', whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.75rem', color: 'text.secondary' }}>ACTIONS</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -333,7 +508,7 @@ export const Dashboard = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDocs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((doc) => (
+                sortedDocs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((doc) => (
                   <TableRow
                     key={doc.id}
                     hover
@@ -350,48 +525,49 @@ export const Dashboard = () => {
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{doc.file_name}</Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.document_date || 'N/A'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>{doc.extracted_data?.claim_number || 'N/A'}</Typography>
                     </TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.claimant_name || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.claimant_number || 'N/A'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.firm_name || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Tooltip title={doc.extracted_data?.firm_address || ''}>
-                        <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>{doc.extracted_data?.firm_address || 'N/A'}</Typography>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.provider || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.policy_number || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.date_of_loss || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {doc.extracted_data?.date_of_service_from || 'N/A'} - {doc.extracted_data?.date_of_service_to || 'N/A'}
-                      </Typography>
-                    </TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.processing_date || (doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'N/A')}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{doc.extracted_data?.amount_billed || 'N/A'}</Typography>
                     </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.eighty_percent_amount_billed || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.amount_paid || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.error.main }}>{doc.extracted_data?.amount_owed || 'N/A'}</Typography>
+                    <TableCell sx={{ whiteSpace: 'nowrap', minWidth: 140 }}>
+                      {doc.confidence_score !== undefined && doc.confidence_score !== null ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Box sx={{ flexGrow: 1, height: 4, bgcolor: 'grey.200', borderRadius: 2, overflow: 'hidden' }}>
+                            <Box sx={{ height: '100%', bgcolor: doc.confidence_score >= 0.8 ? 'success.main' : 'error.main', width: `${doc.confidence_score * 100}%` }} />
+                          </Box>
+                          <Typography variant="body2" sx={{ color: doc.confidence_score >= 0.8 ? 'success.main' : 'error.main', fontWeight: 600 }}>{Math.round(doc.confidence_score * 100)}%</Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">N/A</Typography>
+                      )}
                     </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.total_postage_cost || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.certification_number || 'N/A'}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{doc.extracted_data?.documents_in_envelope || 'N/A'}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}><StatusChip status={doc.status.toUpperCase()} /></TableCell>
-                    <TableCell align="center" sx={{ position: 'sticky', right: 0, bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff', zIndex: 1, boxShadow: '-4px 0 8px -4px rgba(0,0,0,0.1)' }}>
-                      <Tooltip title="Review Document Details">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/documents/${doc.id}`); }}
-                          sx={{ color: theme.palette.primary.main }}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); navigate(`/documents/${doc.id}`); }}><VisibilityIcon fontSize="small" /></IconButton>
+                        
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); window.open(`http://localhost:8000/api/v1/documents/${doc.id}/file`, '_blank'); }}>
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                        
+                        {isAdmin && (
+                          
+                            <IconButton size="small" onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Are you sure you want to delete this document?')) {
+                                documentApi.deleteDocument(doc.id).then(() => fetchDocuments());
+                              }
+                            }} sx={{ color: theme.palette.error.main, opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                              <DeleteOutlineOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
@@ -412,6 +588,107 @@ export const Dashboard = () => {
           sx={{ borderTop: `1px solid ${theme.palette.divider}` }}
         />
       </Paper>
+      </Box>
+
+      {/* ───── UPLOAD MODAL ───── */}
+      <Dialog 
+        open={uploadModalOpen} 
+        onClose={() => !uploading && setUploadModalOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { borderRadius: 3, p: 1 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>Upload Document</Typography>
+            <Typography variant="body2" color="text.secondary">Upload standard or scanned PDFs</Typography>
+          </Box>
+          <IconButton onClick={() => !uploading && setUploadModalOpen(false)} disabled={uploading}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          
+            <Paper
+              elevation={0}
+              sx={{
+                p: 6,
+                mt: 1,
+                border: `2px dashed ${dragActive ? theme.palette.primary.main : theme.palette.divider}`,
+                bgcolor: dragActive ? (theme.palette.mode === 'dark' ? 'rgba(37, 99, 235, 0.05)' : '#eff6ff') : (theme.palette.mode === 'dark' ? '#0f172a' : '#fafbfc'),
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                transition: 'all 0.2s ease',
+                position: 'relative'
+              }}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={inputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={handleChange}
+                style={{ display: 'none' }}
+              />
+              
+              {uploadSuccess ? (
+                <Box sx={{ textAlign: 'center' }}>
+                  <CheckCircleOutlineIcon sx={{ fontSize: 64, color: theme.palette.success.main, mb: 2 }} />
+                  <Typography variant="h6">Upload Successful!</Typography>
+                </Box>
+              ) : file ? (
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <InsertDriveFileOutlinedIcon sx={{ fontSize: 64, color: theme.palette.primary.main, mb: 2 }} />
+                  <Typography variant="h6">{file.name}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                    <Button variant="outlined" onClick={() => setFile(null)} disabled={uploading}>
+                      Cancel
+                    </Button>
+                    <Button variant="contained" onClick={handleUpload} disabled={uploading} startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}>
+                      {uploading ? 'Processing...' : 'Confirm Upload'}
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                <>
+                  <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+                    <CloudUploadIcon sx={{ fontSize: 40, color: theme.palette.text.secondary }} />
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Drag & Drop your PDF here</Typography>
+                  <Typography variant="body2" color="text.secondary">or click to browse your files</Typography>
+                  <Button variant="contained" onClick={() => inputRef.current?.click()} sx={{ mt: 2, px: 4, borderRadius: 2 }}>
+                    Browse Files
+                  </Button>
+                  <Box sx={{ mt: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" color="text.secondary">Need a test file?</Typography>
+                    <Button 
+                      href={documentApi.downloadSampleUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      size="small" 
+                      startIcon={<DownloadIcon />} 
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Download Sample
+                    </Button>
+                  </Box>
+                </>
+              )}
+            </Paper>
+          
+        </DialogContent>
+      </Dialog>
+
     </Box>
   );
 };
