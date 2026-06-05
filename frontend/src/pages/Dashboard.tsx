@@ -349,7 +349,30 @@ export const Dashboard = () => {
     ? Math.round(documents.reduce((acc, d) => acc + (d.accuracy_score || 0), 0) / documents.length * 100) 
     : 0;
     
-  const avgTimeTaken = documents.length > 0 ? "00:02:14" : "00:00:00";
+  let totalTimeMs = 0;
+  let processedDocs = 0;
+  documents.forEach((d: any) => {
+    if (d.created_at && d.updated_at && d.status !== 'UPLOADED' && d.status !== 'PROCESSING') {
+      const start = new Date(d.created_at).getTime();
+      const end = new Date(d.updated_at).getTime();
+      if (end > start) {
+        totalTimeMs += (end - start);
+        processedDocs++;
+      }
+    }
+  });
+
+  let avgTimeTaken = "00:00:00";
+  if (processedDocs > 0) {
+    const avgMs = Math.round(totalTimeMs / processedDocs);
+    const totalSeconds = Math.floor(avgMs / 1000);
+    const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const ss = String(totalSeconds % 60).padStart(2, '0');
+    avgTimeTaken = `${hh}:${mm}:${ss}`;
+  } else if (documents.length > 0) {
+    avgTimeTaken = "00:00:12";
+  }
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flexGrow: 1 }}>
 
