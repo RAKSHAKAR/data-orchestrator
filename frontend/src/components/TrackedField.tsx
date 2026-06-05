@@ -12,10 +12,11 @@ interface TrackedFieldProps {
   isAiExtracted?: boolean;
   updatedBy?: string;
   updatedOn?: string;
+  isEditing?: boolean;
   onChange: (newValue: string) => void;
 }
 
-export const TrackedField = ({ label, originalValue, value, isManuallyUpdated, isAiExtracted = true, updatedBy, updatedOn, onChange }: TrackedFieldProps) => {
+export const TrackedField = ({ label, originalValue, value, isManuallyUpdated, isAiExtracted = true, updatedBy, updatedOn, isEditing = true, onChange }: TrackedFieldProps) => {
   const theme = useTheme();
   const [currentValue, setCurrentValue] = useState(value);
 
@@ -83,6 +84,9 @@ export const TrackedField = ({ label, originalValue, value, isManuallyUpdated, i
                 borderColor: theme.palette.divider,
               },
             }
+          }}
+          InputProps={{
+            readOnly: !isEditing,
           }}
         />
       </Tooltip>

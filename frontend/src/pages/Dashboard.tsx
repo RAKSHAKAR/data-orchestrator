@@ -158,6 +158,26 @@ export const Dashboard = () => {
     }
   };
 
+  const handleExport = () => {
+    window.open(documentApi.exportExcelUrl, '_blank');
+  };
+
+  const handleBulkSend = async () => {
+    const validatedDocs = documents.filter(d => d.status.toUpperCase() === 'VALIDATED');
+    if (validatedDocs.length === 0) return;
+    
+    setLoading(true);
+    try {
+      const ids = validatedDocs.map(d => d.id);
+      await documentApi.bulkSendGuidewire(ids);
+      await fetchDocuments();
+    } catch (e) {
+      console.error('Failed to bulk send to Guidewire', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDocuments();
   }, []);
@@ -209,9 +229,19 @@ export const Dashboard = () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Tooltip title="Export current view to CSV"><Button variant="outlined" startIcon={<DownloadIcon />} size="small">Export</Button></Tooltip>
+          <Tooltip title="Export current view to Excel"><Button variant="outlined" startIcon={<DownloadIcon />} size="small" onClick={handleExport}>Export to Excel</Button></Tooltip>
           <Tooltip title="Upload a new PDF document"><Button variant="outlined" startIcon={<CloudUploadIcon />} size="small" onClick={() => navigate('/upload')}>Upload PDF</Button></Tooltip>
-          <Tooltip title="Send all validated documents to Guidewire"><Button variant="contained" startIcon={<SendIcon />} size="small">Send Validated to Guidewire</Button></Tooltip>
+          <Tooltip title="Send all validated documents to Guidewire">
+            <Button 
+              variant="contained" 
+              startIcon={<SendIcon />} 
+              size="small" 
+              onClick={handleBulkSend}
+              disabled={documents.filter(d => d.status.toUpperCase() === 'VALIDATED').length === 0 || loading}
+            >
+              Send Validated to Guidewire
+            </Button>
+          </Tooltip>
         </Box>
       </Box>
 

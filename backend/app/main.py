@@ -37,8 +37,9 @@ def on_startup():
     db = SessionLocal()
     try:
         from app.models.user import User
-        existing = db.query(User).first()
-        if not existing:
+        
+        admin = db.query(User).filter(User.email == "admin@demo.com").first()
+        if not admin:
             admin = User(
                 email="admin@demo.com",
                 hashed_password=get_password_hash("admin123"),
@@ -49,8 +50,19 @@ def on_startup():
             db.add(admin)
             db.commit()
             logger.info("Default admin user created: admin@demo.com / admin123")
-        else:
-            logger.info(f"Users already exist. Skipping seed.")
+            
+        standard_user = db.query(User).filter(User.email == "user@demo.com").first()
+        if not standard_user:
+            standard_user = User(
+                email="user@demo.com",
+                hashed_password=get_password_hash("user123"),
+                full_name="Standard User",
+                is_active=True,
+                is_superuser=False
+            )
+            db.add(standard_user)
+            db.commit()
+            logger.info("Default standard user created: user@demo.com / user123")
     except Exception as e:
         logger.error(f"Error seeding user: {e}")
         db.rollback()

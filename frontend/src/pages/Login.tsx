@@ -192,7 +192,8 @@ export const Login = () => {
         </form>
 
         <Typography variant="caption" sx={{ display: 'block', mt: 3, textAlign: 'center', color: '#64748b' }}>
-          Default credentials: admin@demo.com / admin123
+          Admin: admin@demo.com / admin123<br />
+          User: user@demo.com / user123
         </Typography>
       </Paper>
     </Box>

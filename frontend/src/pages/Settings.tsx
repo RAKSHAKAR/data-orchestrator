@@ -1,20 +1,33 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Paper, TextField, Button, Alert, Snackbar } from '@mui/material';
+import { Box, Typography, Paper, TextField, Button, Alert, Snackbar, InputAdornment, IconButton } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import MicrosoftIcon from '@mui/icons-material/Window';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import { settingsApi } from '../services/api';
+import { useAuthStore } from '../store/useAuthStore';
 
 export const Settings = () => {
   const [sharepointUrl, setSharepointUrl] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [guidewireUrl, setGuidewireUrl] = useState('');
+  const [guidewireApiKey, setGuidewireApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showGuidewireKey, setShowGuidewireKey] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [toast, setToast] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [loading, setLoading] = useState(false);
+  
+  const { user } = useAuthStore();
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const data = await settingsApi.getSettings();
         setSharepointUrl(data.sharepoint_url);
+        setOpenaiApiKey(data.openai_api_key || '');
+        setGuidewireUrl(data.guidewire_api_url || '');
+        setGuidewireApiKey(data.guidewire_api_key || '');
         setIsAuthenticated(data.is_authenticated);
       } catch (e) {
         console.error("Failed to load settings", e);
@@ -25,7 +38,7 @@ export const Settings = () => {
 
   const handleSaveUrl = async () => {
     try {
-      await settingsApi.updateSettings(sharepointUrl);
+      await settingsApi.updateSettings(sharepointUrl, openaiApiKey, guidewireUrl, guidewireApiKey);
       setToast({ open: true, message: 'Settings saved successfully', severity: 'success' });
     } catch (e) {
       setToast({ open: true, message: 'Failed to save settings', severity: 'error' });
@@ -62,6 +75,15 @@ export const Settings = () => {
     }
   };
 
+  if (user?.role !== 'admin') {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center', mt: 10 }}>
+        <Typography variant="h4" color="error" gutterBottom>Unauthorized Access</Typography>
+        <Typography variant="body1">You do not have administrative privileges to view or modify settings.</Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3, margin: '0 auto', width: '100%' }}>
       <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold' }}>Settings</Typography>
@@ -75,15 +97,119 @@ export const Settings = () => {
         <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
           <TextField
             fullWidth
+            name="sharepoint_url_field"
+            autoComplete="off"
             label="SharePoint Folder URL"
             variant="outlined"
             size="small"
             value={sharepointUrl}
             onChange={(e) => setSharepointUrl(e.target.value)}
             placeholder="https://yourtenant.sharepoint.com/sites/Documents"
+            slotProps={{
+              htmlInput: {
+                autoComplete: 'off',
+                name: 'random-sharepoint-name'
+              }
+            }}
           />
-          <Button variant="contained" color="primary" onClick={handleSaveUrl} sx={{ whiteSpace: 'nowrap' }}>
-            Save URL
+        </Box>
+
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>AI Vision Extraction</Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+          Configure the OpenAI API Key used for extracting data from PDFs via the Vision API.
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+          <TextField
+            fullWidth
+            label="OpenAI API Key"
+            variant="outlined"
+            size="small"
+            type={showApiKey ? 'text' : 'password'}
+            value={openaiApiKey}
+            onChange={(e) => setOpenaiApiKey(e.target.value)}
+            placeholder="sk-..."
+            slotProps={{
+              htmlInput: {
+                autoComplete: 'new-password',
+                name: 'random-openai-name'
+              },
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle api key visibility"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      edge="end"
+                    >
+                      {showApiKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }
+            }}
+          />
+        </Box>
+
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Guidewire Integration</Typography>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+          Configure the Guidewire API endpoint for sending validated insurance claims.
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+          <TextField
+            fullWidth
+            name="guidewire_url_field"
+            autoComplete="off"
+            label="Guidewire API URL"
+            variant="outlined"
+            size="small"
+            value={guidewireUrl}
+            onChange={(e) => setGuidewireUrl(e.target.value)}
+            placeholder="https://gw-api.yourcompany.com/cc/rest/claims"
+            slotProps={{
+              htmlInput: {
+                autoComplete: 'off',
+                name: 'random-gw-url'
+              }
+            }}
+          />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+          <TextField
+            fullWidth
+            label="Guidewire API Key"
+            variant="outlined"
+            size="small"
+            type={showGuidewireKey ? 'text' : 'password'}
+            value={guidewireApiKey}
+            onChange={(e) => setGuidewireApiKey(e.target.value)}
+            placeholder="Enter API Key"
+            slotProps={{
+              htmlInput: {
+                autoComplete: 'new-password',
+                name: 'random-gw-key'
+              },
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle guidewire key visibility"
+                      onClick={() => setShowGuidewireKey(!showGuidewireKey)}
+                      edge="end"
+                    >
+                      {showGuidewireKey ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }
+            }}
+          />
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 4 }}>
+          <Button variant="contained" color="primary" onClick={handleSaveUrl}>
+            Save All Settings
           </Button>
         </Box>
 

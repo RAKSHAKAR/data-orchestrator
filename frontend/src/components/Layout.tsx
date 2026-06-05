@@ -2,8 +2,11 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Box, Drawer, AppBar, Toolbar, Typography, List, ListItemButton, ListItemIcon,
-  ListItemText, IconButton, useTheme, Avatar, Divider, Tooltip, Badge
+  ListItemText, IconButton, useTheme, Avatar, Divider, Tooltip, Badge,
+  Menu, MenuItem, ListItemAvatar
 } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -32,6 +35,15 @@ export const Layout = ({ children }: LayoutProps) => {
   const { logout, user } = useAuthStore();
   const { toggleDarkMode } = useStore();
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleNotificationClick = (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationAnchorEl(event.currentTarget);
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchorEl(null);
+  };
 
   const currentDrawerWidth = drawerOpen ? DRAWER_WIDTH : DRAWER_COLLAPSED;
 
@@ -39,8 +51,11 @@ export const Layout = ({ children }: LayoutProps) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Documents', icon: <DescriptionIcon />, path: '/documents' },
     { text: 'Upload', icon: <UploadFileIcon />, path: '/upload' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
+
+  if (user?.role === 'admin') {
+    menuItems.push({ text: 'Settings', icon: <SettingsIcon />, path: '/settings' });
+  }
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -89,12 +104,66 @@ export const Layout = ({ children }: LayoutProps) => {
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="View pending notifications">
-            <IconButton size="small" sx={{ color: theme.palette.text.secondary }}>
+            <IconButton size="small" onClick={handleNotificationClick} sx={{ color: theme.palette.text.secondary }}>
               <Badge badgeContent={2} color="error" variant="dot">
                 <NotificationsNoneIcon fontSize="small" />
               </Badge>
             </IconButton>
           </Tooltip>
+          
+          <Menu
+            anchorEl={notificationAnchorEl}
+            open={Boolean(notificationAnchorEl)}
+            onClose={handleNotificationClose}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            PaperProps={{
+              elevation: 4,
+              sx: {
+                mt: 1.5,
+                width: 320,
+                borderRadius: 2,
+                overflow: 'visible',
+                '&:before': {
+                  content: '""',
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  right: 14,
+                  width: 10,
+                  height: 10,
+                  bgcolor: 'background.paper',
+                  transform: 'translateY(-50%) rotate(45deg)',
+                  zIndex: 0,
+                },
+              },
+            }}
+          >
+            <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="subtitle1" fontWeight="bold">Notifications</Typography>
+            </Box>
+            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <ListItemIcon>
+                <WarningAmberIcon color="warning" />
+              </ListItemIcon>
+              <ListItemText 
+                primary={<Typography variant="body2" fontWeight="600">Document Pending</Typography>}
+                secondary={<Typography variant="caption" color="text.secondary">A document requires manual validation before sending to Guidewire.</Typography>}
+              />
+            </MenuItem>
+            <MenuItem onClick={handleNotificationClose} sx={{ py: 1.5 }}>
+              <ListItemIcon>
+                <CheckCircleOutlinedIcon color="success" />
+              </ListItemIcon>
+              <ListItemText 
+                primary={<Typography variant="body2" fontWeight="600">SharePoint Sync</Typography>}
+                secondary={<Typography variant="caption" color="text.secondary">Successfully synced 3 new files from SharePoint.</Typography>}
+              />
+            </MenuItem>
+            <Box sx={{ p: 1, borderTop: `1px solid ${theme.palette.divider}`, textAlign: 'center' }}>
+              <Typography variant="caption" color="primary" sx={{ cursor: 'pointer', fontWeight: 600 }}>Mark all as read</Typography>
+            </Box>
+          </Menu>
 
           <Tooltip title={theme.palette.mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
             <IconButton onClick={toggleDarkMode} size="small" sx={{ color: theme.palette.text.secondary }}>

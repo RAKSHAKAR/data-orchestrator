@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./data_orchestrator.db"
     
+    # OpenAI
+    OPENAI_API_KEY: str | None = None
+    
+    # Guidewire
+    GUIDEWIRE_API_URL: str | None = None
+    GUIDEWIRE_API_KEY: str | None = None
+    
     # Celery
     CELERY_BROKER_URL: str = "sqla+sqlite:///celery_broker.db"
     CELERY_RESULT_BACKEND: str = "db+sqlite:///celery_results.db"

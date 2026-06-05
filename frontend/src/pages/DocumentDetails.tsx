@@ -88,6 +88,8 @@ export const DocumentDetails = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editedFields, setEditedFields] = useState<string[]>([]);
+  const [validationData, setValidationData] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     documentDate: 'N/A', processingDate: 'N/A', receivedDate: 'N/A',
@@ -203,6 +205,35 @@ export const DocumentDetails = () => {
     }
   };
 
+  const handleTriggerValidation = async () => {
+    if (!_id) return;
+    setActionLoading(true);
+    try {
+      const res = await documentApi.triggerValidation(Number(_id));
+      setValidationData(res);
+      const updatedDoc = await documentApi.getDocument(_id);
+      setDocument(updatedDoc);
+    } catch (e) {
+      console.error('Failed to trigger validation', e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendToGuidewire = async () => {
+    if (!_id) return;
+    setActionLoading(true);
+    try {
+      await documentApi.sendToGuidewire(Number(_id));
+      const updatedDoc = await documentApi.getDocument(_id);
+      setDocument(updatedDoc);
+    } catch (e) {
+      console.error('Failed to send to Guidewire', e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const [auditLog, setAuditLog] = useState<Array<{ field: string; original: string; updatedBy: string; updatedOn: string }>>([]);
 
   const handleFieldChange = (field: string, newValue: string) => {
@@ -227,19 +258,32 @@ export const DocumentDetails = () => {
       updatedBy={getFieldAudit(key)?.updatedBy}
       updatedOn={getFieldAudit(key)?.updatedOn}
       isManuallyUpdated={isFieldUpdated(key)}
+      isEditing={isEditing}
       onChange={(val) => handleFieldChange(key, val)}
     />
   );
 
   /* ─── Validation Data ─── */
-  const validationRows = [
-    { field: 'Claim Number', fromLetter: formData.claimNumber, fromGuidewire: 'N/A', match: false },
-    { field: 'Date of Loss', fromLetter: formData.dateOfLoss, fromGuidewire: 'N/A', match: false },
-    { field: 'Claimant Name', fromLetter: formData.claimantName, fromGuidewire: 'N/A', match: false },
-    { field: 'Policy Number', fromLetter: formData.policyNumber, fromGuidewire: 'N/A', match: false },
-    { field: 'Amount Billed', fromLetter: formData.amountBilled, fromGuidewire: formData.amountBilled, match: true }, // mocked match
-    { field: 'Amount Owed', fromLetter: formData.amountOwed, fromGuidewire: 'N/A', match: false },
-  ];
+  const getValidationRows = () => {
+    if (validationData) {
+      return [
+        { field: 'Claim Number', fromLetter: formData.claimNumber, fromGuidewire: validationData.mock_guidewire_data.claim_number, match: formData.claimNumber === validationData.mock_guidewire_data.claim_number },
+        { field: 'Claimant Name', fromLetter: formData.claimantName, fromGuidewire: validationData.mock_guidewire_data.claimant_name, match: formData.claimantName === validationData.mock_guidewire_data.claimant_name },
+        { field: 'Amount Billed', fromLetter: formData.amountBilled, fromGuidewire: validationData.mock_guidewire_data.amount_billed, match: formData.amountBilled === validationData.mock_guidewire_data.amount_billed },
+        { field: 'Provider', fromLetter: formData.provider, fromGuidewire: validationData.mock_guidewire_data.provider, match: formData.provider === validationData.mock_guidewire_data.provider },
+      ];
+    }
+    // Default mock rows if validation not yet triggered
+    return [
+      { field: 'Claim Number', fromLetter: formData.claimNumber, fromGuidewire: 'N/A', match: false },
+      { field: 'Date of Loss', fromLetter: formData.dateOfLoss, fromGuidewire: 'N/A', match: false },
+      { field: 'Claimant Name', fromLetter: formData.claimantName, fromGuidewire: 'N/A', match: false },
+      { field: 'Policy Number', fromLetter: formData.policyNumber, fromGuidewire: 'N/A', match: false },
+      { field: 'Amount Billed', fromLetter: formData.amountBilled, fromGuidewire: formData.amountBilled, match: true },
+      { field: 'Amount Owed', fromLetter: formData.amountOwed, fromGuidewire: 'N/A', match: false },
+    ];
+  };
+  const validationRows = getValidationRows();
 
   /* ─── Log Data ─── */
   const logRows = document?.processing_logs || [];
@@ -284,8 +328,10 @@ export const DocumentDetails = () => {
               <Button variant="outlined" startIcon={<EditIcon />} onClick={() => setIsEditing(true)} size="small">Edit</Button>
             </Tooltip>
           )}
-          <Tooltip title="Re-run validation rules on this document">
-            <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small">Trigger Validation</Button>
+          <Tooltip title="Re-check validation rules against external system">
+            <Button variant="contained" color="primary" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>
+              {actionLoading ? 'Validating...' : 'Trigger Validation'}
+            </Button>
           </Tooltip>
         </Box>
       </Paper>
@@ -428,8 +474,8 @@ export const DocumentDetails = () => {
               <Typography variant="body2" color="text.secondary">Compare extracted data with Guidewire records</Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <Tooltip title="This API connection has not yet been validated"><Button variant="outlined" size="small">API Not Validated</Button></Tooltip>
-              <Tooltip title="Re-check validation rules against external system"><Button variant="contained" startIcon={<SendIcon />} size="small">Trigger Validation</Button></Tooltip>
+              {!validationData && <Tooltip title="This API connection has not yet been validated"><Button variant="outlined" size="small">API Not Validated</Button></Tooltip>}
+              <Tooltip title="Re-check validation rules against external system"><Button variant="contained" startIcon={<SendIcon />} size="small" onClick={handleTriggerValidation} disabled={actionLoading}>Trigger Validation</Button></Tooltip>
             </Box>
           </Box>
 
@@ -463,8 +509,24 @@ export const DocumentDetails = () => {
           </TableContainer>
 
           <Paper elevation={0} sx={{ mt: 4, p: 4, border: `2px dashed ${theme.palette.divider}`, textAlign: 'center' }}>
-            <Tooltip title="Cannot send until all mismatches are resolved"><Button disabled variant="contained" size="large" sx={{ px: 6, mb: 1.5 }}>Send to Guidewire</Button></Tooltip>
-            <Typography variant="body2" color="text.secondary">Claimant name and number must be resolved before sending to Guidewire.</Typography>
+            <Tooltip title={document?.status === 'VALIDATED' ? "Send validated data to Guidewire" : "Cannot send until all mismatches are resolved"}>
+              <span>
+                <Button 
+                  disabled={document?.status !== 'VALIDATED' || actionLoading} 
+                  variant="contained" 
+                  size="large" 
+                  sx={{ px: 6, mb: 1.5 }}
+                  onClick={handleSendToGuidewire}
+                >
+                  Send to Guidewire
+                </Button>
+              </span>
+            </Tooltip>
+            <Typography variant="body2" color="text.secondary">
+              {document?.status === 'VALIDATED' 
+                ? 'Document is fully validated and ready to be sent.' 
+                : 'All fields must match the Guidewire system before sending is allowed.'}
+            </Typography>
           </Paper>
         </TabPanel>
 

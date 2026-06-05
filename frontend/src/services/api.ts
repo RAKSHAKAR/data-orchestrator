@@ -59,6 +59,24 @@ export const documentApi = {
     return response.data;
   },
   
+  getDocumentAudit: async (id: number) => {
+    const response = await api.get(`/documents/${id}/audit`);
+    return response.data;
+  },
+  triggerValidation: async (id: number) => {
+    const response = await api.post(`/documents/${id}/validate`);
+    return response.data;
+  },
+  sendToGuidewire: async (id: number) => {
+    const response = await api.post(`/documents/${id}/send_guidewire`);
+    return response.data;
+  },
+  bulkSendGuidewire: async (documentIds: number[]) => {
+    const response = await api.post(`/documents/bulk_send_guidewire`, { document_ids: documentIds });
+    return response.data;
+  },
+  exportExcelUrl: `${api.defaults.baseURL}/documents/export/excel`,
+
   uploadDocument: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -91,8 +109,13 @@ export const settingsApi = {
     const response = await api.get('/settings/');
     return response.data;
   },
-  updateSettings: async (sharepoint_url: string) => {
-    const response = await api.post('/settings/', { sharepoint_url });
+  updateSettings: async (sharepointUrl: string, openaiApiKey?: string, guidewireUrl?: string, guidewireApiKey?: string) => {
+    const payload: any = { sharepoint_url: sharepointUrl };
+    if (openaiApiKey) payload.openai_api_key = openaiApiKey;
+    if (guidewireUrl) payload.guidewire_api_url = guidewireUrl;
+    if (guidewireApiKey) payload.guidewire_api_key = guidewireApiKey;
+    
+    const response = await api.post('/settings/', payload);
     return response.data;
   },
   authenticateMicrosoft: async () => {

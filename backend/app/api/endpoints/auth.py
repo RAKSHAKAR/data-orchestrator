@@ -25,7 +25,8 @@ def login(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = 
         "token_type": "bearer",
         "user": {
             "email": user.email,
-            "name": user.full_name or user.email.split("@")[0]
+            "name": user.full_name or user.email.split("@")[0],
+            "role": "admin" if user.is_superuser else "user"
         }
     }
 
@@ -46,5 +47,6 @@ def get_current_user_info(token: str = Depends(oauth2_scheme), db: Session = Dep
     return {
         "email": user.email,
         "name": user.full_name or user.email.split("@")[0],
-        "is_active": user.is_active
+        "is_active": user.is_active,
+        "role": "admin" if user.is_superuser else "user"
     }

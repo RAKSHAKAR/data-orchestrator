@@ -1,209 +1,146 @@
-import re
+import os
+import json
+import base64
 import logging
 from datetime import datetime
+from typing import Optional, List
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
+import fitz  # PyMuPDF
+from openai import OpenAI
+
+from app.core.config import settings
 from app.db.database import SessionLocal
 from app.models.domain import Document, ExtractedData, ProcessingLog, StatusHistory
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# LLM SCHEMA DEFINITION
+# ---------------------------------------------------------------------------
+class ExtractedField(BaseModel):
+    value: str = Field(description="The extracted value. If not found, use 'Not found'. For money use '0.00'. For dates use MM/DD/YYYY.")
+    confidence: float = Field(description="Confidence score between 0.0 and 1.0 based on how clear the text is.")
 
-def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF using multiple strategies for speed and accuracy.
-    Strategy 1: pdfplumber (fast, works for text-based PDFs)
-    Strategy 2: PyMuPDF native text (fast, works for text-based PDFs)
-    Strategy 3: EasyOCR fallback (slow, works for scanned/image PDFs) - LIMITED TO FIRST 2 PAGES
-    """
-    raw_text = ""
+class DemandLetterExtraction(BaseModel):
+    policy_number: ExtractedField
+    claim_number: ExtractedField
+    claimant_name: ExtractedField
+    provider: ExtractedField
+    firm_name: ExtractedField
+    firm_address: ExtractedField
+    amount_billed: ExtractedField
+    eighty_percent_amount_billed: ExtractedField
+    amount_paid: ExtractedField
+    amount_owed: ExtractedField
+    date_of_loss: ExtractedField
+    documents_in_envelope: ExtractedField
+    date_of_service_from: ExtractedField
+    date_of_service_to: ExtractedField
+    document_date: ExtractedField
+    total_postage_cost: ExtractedField
+    certification_number: ExtractedField
+    envelope_type: ExtractedField
+    certified_mail: ExtractedField
+    assignment_of_benefit: ExtractedField
 
-    # Strategy 1: Try pdfplumber (best for text-based PDFs)
+
+SYSTEM_PROMPT = """
+You are an expert data extraction AI. You are extracting values from an insurance / legal demand letter and its related envelope pages. 
+You will be provided with images of the document.
+
+Extract these fields:
+1. Claim Number (Numeric only, e.g. 123456789. Do not use file numbers)
+2. Claimant Name (Patient/Insured name)
+3. Firm Name (Law firm name from letterhead)
+4. Provider (Medical facility)
+5. Amount Owed (Balance due)
+6. Certified Mail (Yes/No)
+7. Firm Address (Address from letterhead)
+8. Amount Billed (Total billed)
+9. Amount Paid (Previous payments)
+10. No. of Documents in Envelope
+11. Policy Number (Alphanumeric, e.g. FLA12345)
+12. DOL (Date of Loss, MM/DD/YYYY)
+13. Certification Number (Tracking number)
+14. Document Date (Date of letter, MM/DD/YYYY)
+15. Assignment of Benefit (Yes/No)
+16. 80% Amount Billed (@ 80% amount)
+17. Date of Service From
+18. Date of Service To
+19. Envelope Type
+20. Total Postage Cost
+
+Normalization rules:
+- Money: return only the numeric value with exactly 2 decimal places, no $ and no commas (e.g. 123.46). If not found, return "0.00".
+- Dates: return in MM/DD/YYYY when possible.
+- Yes/No fields: return "Yes", "No", or "Not found".
+- Missing fields: return "Not found" (except money which should be "0.00").
+- Names/addresses: plain text, remove apostrophes.
+
+For each field, also provide a confidence score between 0.0 and 1.0 based on how clearly you can read it.
+"""
+
+def extract_images_from_pdf(file_path: str, max_pages: int = 50) -> List[str]:
+    """Convert the pages of a PDF to Base64 JPEG strings."""
+    base64_images = []
     try:
-        import pdfplumber
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages[:3]:
-                page_text = page.extract_text()
-                if page_text:
-                    raw_text += page_text + "\n"
-        if len(raw_text.strip()) > 100:
-            logger.info(f"pdfplumber extracted {len(raw_text)} chars")
-            return raw_text
-    except Exception as e:
-        logger.warning(f"pdfplumber failed: {e}")
-
-    # Strategy 2: Try PyMuPDF native text
-    try:
-        import fitz
         pdf_doc = fitz.open(file_path)
-        for page in pdf_doc[:3]:
-            page_text = page.get_text()
-            if page_text.strip():
-                raw_text += page_text + "\n"
-        pdf_doc.close()
-        if len(raw_text.strip()) > 100:
-            logger.info(f"PyMuPDF extracted {len(raw_text)} chars")
-            return raw_text
-    except Exception as e:
-        logger.warning(f"PyMuPDF text extraction failed: {e}")
-
-    # Strategy 3: EasyOCR fallback - ONLY FIRST 2 PAGES for speed
-    raw_text = ""
-    try:
-        import fitz
-        import easyocr
-        from PIL import Image
-        import numpy as np
-        import io
-
-        # Initialize OCR engine ONCE (not per page!)
-        logger.info("Using EasyOCR fallback for scanned PDF...")
-        ocr_engine = easyocr.Reader(['en'], gpu=False, verbose=False)
-        pdf_doc = fitz.open(file_path)
-
-        max_pages = min(2, len(pdf_doc))  # ONLY first 2 pages
-        for page_num in range(max_pages):
+        pages_to_process = min(max_pages, len(pdf_doc))
+        
+        for page_num in range(pages_to_process):
             page = pdf_doc[page_num]
-            pix = page.get_pixmap()  # Default resolution - no upscaling
-            img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-            img_array = np.array(img)
-            result = ocr_engine.readtext(img_array)
-            for line in result:
-                raw_text += line[1] + " "
-            raw_text += "\n"
-            logger.info(f"OCR page {page_num + 1}/{max_pages} done")
-
+            pix = page.get_pixmap(dpi=150)
+            jpeg_bytes = pix.tobytes("jpeg")
+            img_str = base64.b64encode(jpeg_bytes).decode("utf-8")
+            base64_images.append(img_str)
+            
         pdf_doc.close()
     except Exception as e:
-        logger.warning(f"EasyOCR fallback failed: {e}")
+        logger.error(f"Error converting PDF to images: {e}")
+    return base64_images
 
-    return raw_text
 
+def call_openai_vision(base64_images: List[str]) -> dict:
+    """Call OpenAI Vision API to extract structured data."""
+    if not settings.OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY is not set in environment variables.")
+        
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    # Construct message content
+    content = [{"type": "text", "text": "Extract the specified fields from these document images."}]
+    for img_str in base64_images:
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{img_str}"
+            }
+        })
 
-def parse_demand_letter(raw_text: str) -> dict:
-    """Parse structured data from raw text of insurance demand letters.
-    Uses multiple flexible regex patterns per field to handle OCR typos.
-    """
-    parsed = {}
-    # Normalize: collapse whitespace, keep original case for matching
-    text = re.sub(r'\s+', ' ', raw_text)
-
-    # --- Helper: try multiple patterns, return first match ---
-    def try_patterns(patterns, text_input=text):
-        for pat in patterns:
-            m = re.search(pat, text_input, re.IGNORECASE)
-            if m:
-                val = m.group(1).strip()
-                # Clean common OCR artifacts but keep alphanumeric, spaces, punctuation
-                val = re.sub(r'[^\w\s\.,/:\-\$#@]', '', val).strip()
-                if len(val) > 1:
-                    return val
-        return None
-
-    # --- Claim Number ---
-    parsed["claim_number"] = try_patterns([
-        r'Claim\s*(?:No\.?|Number|#)?[:\s;.]*\s*([A-Z0-9][\w\-]{3,})',
-        r'Claim\s+(\w{5,})\b',
-    ])
-
-    # --- Claimant / Patient Name ---
-    parsed["claimant_name"] = try_patterns([
-        r'(?:Patient|Palicnt|Patlent|PATIENT)[:\s;.,]*\s*([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)+)',
-        r'(?:Insured|Insuted|Insurcd|INSURED)[:\s;.,]*\s*([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)+)',
-    ])
-
-    # --- Policy Number ---
-    parsed["policy_number"] = try_patterns([
-        r'Policy\s*(?:No\.?|Number)?[:\s;.]*\s*([A-Z0-9][\w]{4,})',
-    ])
-
-    # --- Provider ---
-    parsed["provider"] = try_patterns([
-        r'Provider[_:\s;.,]*\s*([A-Z][A-Za-z0-9\s,\.]+?)(?:\s{2,}|\s*(?:Patient|Palicnt|Patlent|Claim|Our\s*Matter))',
-        r'Provider[_:\s;.,]*\s*(.+?)(?:\n|\r|Patient|Palicnt)',
-    ])
-
-    # --- Date of Loss ---
-    parsed["date_of_loss"] = try_patterns([
-        r'(?:Date\s*of\s*[Ll]oss|Dilc\s*okloss|D\.?O\.?L\.?|DOL)[:\s;.,]*\s*(\d{1,2}/\d{1,2}/\d{2,4})',
-    ])
-
-    # --- Document Date ---
-    parsed["document_date"] = try_patterns([
-        r'(?:Date|Dale|Datc)[:\s;.,]*\s*(\d{1,2}/\d{1,2}/\d{2,4})',
-        r'((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})',
-    ])
-
-    # --- Financial amounts: try to find dollar amounts near key phrases ---
-    # Amount Billed
-    parsed["amount_billed"] = try_patterns([
-        r'(?:total\s*)?(?:billed|billcd)\s*(?:amount|amouni)?\s*(?:of\s*)?\$?\s*([\d,]+\.\d{2})',
-        r'(?:bill\s*(?:is|was))\s*\$?\s*([\d,]+\.\d{2})',
-        r'(?:billed|billcd).*?(\d[\d,]*\.\d{2})',
-    ])
-
-    # Amount Paid
-    parsed["amount_paid"] = try_patterns([
-        r'(?:amount\s*paid).*?\$\s*([\d,]+\.\d{2})',
-        r'(?:amount\s*paid).*?(\d[\d,]*\.\d{2})',
-        r'(?:paid\s*for\s*these).*?(\d[\d,]*\.\d{2})',
-    ])
-
-    # Amount Owed
-    parsed["amount_owed"] = try_patterns([
-        r'(\d[\d,]*\.\d{2})\s*(?:is\s*)?(?:now\s*)?(?:due|quc|duc|owed)',
-        r'(?:amount\s*owed|balance\s*due).*?\$?\s*([\d,]+\.\d{2})',
-        r'(?:amouni|amount).*?(\d[\d,]*\.\d{2}).*?(?:now\s*(?:due|quc))',
-    ])
-
-    # --- Service Dates ---
-    service_match = re.search(
-        r'(?:dates?\s*(?:of\s*)?service|scrxice|scrvice).*?(\d{1,2}/\d{1,2}/\d{2,4}).*?(?:through|thru|to)\s*(\d{1,2}/\d{1,2}/\d{2,4})',
-        text, re.IGNORECASE
+    # Call OpenAI Structured Outputs
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o",  # or gpt-4o-mini depending on cost/perf
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": content}
+        ],
+        response_format=DemandLetterExtraction,
     )
-    if service_match:
-        parsed["date_of_service_from"] = service_match.group(1)
-        parsed["date_of_service_to"] = service_match.group(2)
+    
+    # Convert Pydantic object to dict
+    parsed = completion.choices[0].message.parsed
+    return parsed.model_dump()
 
-    # --- Certified Mail Number ---
-    cert_match = re.search(
-        r'(?:Certified|Certililed|Certlfied|Cenified)\s*Mail.*?(\d[\d\s]{12,})',
-        text, re.IGNORECASE
-    )
-    if cert_match:
-        parsed["certification_number"] = cert_match.group(1).strip()
-        parsed["envelope_type"] = "Certified Mail"
-        parsed["certified_mail"] = "Yes"
 
-    # --- Firm Name ---
-    parsed["firm_name"] = try_patterns([
-        r'(Fischetti\s*Law\s*Group)',
-        r'(DR\s*CLAIM\s*GROUP)',
-        r'([A-Z][A-Z\s]+(?:LAW|LEGAL|CLAIM)\s*(?:GROUP|FIRM|P\.?A\.?|PLLC|LLC))',
-    ])
-
-    # --- Firm Address (try to grab address block) ---
-    parsed["firm_address"] = try_patterns([
-        r'(\d+\s+[A-Za-z\s]+(?:Blvd|Street|Ave|Road|Dr|Rd|St|Suite|Ste)[\s\.,]+[A-Za-z\s]+,?\s*(?:FL|Florida)\s*\d{5})',
-        r'(?:PO\s*BOX|P\.?O\.?\s*Box)\s*(\d+\s*[A-Za-z\s,]+\d{5})',
-    ])
-
-    # --- Processing date ---
-    parsed["processing_date"] = datetime.utcnow().strftime("%m/%d/%Y")
-    parsed["received_date"] = datetime.utcnow().strftime("%m/%d/%Y")
-
-    # Prefix dollar amounts
-    for field in ["amount_billed", "amount_paid", "amount_owed"]:
-        if parsed.get(field) and not parsed[field].startswith("$"):
-            parsed[field] = f"$ {parsed[field]}"
-
-    return parsed
-
+# ---------------------------------------------------------------------------
+# MAIN PROCESSING PIPELINE
+# ---------------------------------------------------------------------------
 
 def process_document_task(document_id: int, file_path: str):
-    """Process a document: extract text and parse structured data.
-    Creates its own DB session to be safe for background tasks."""
+    """Process a document: extract text via OpenAI Vision API and parse structured data."""
     db = SessionLocal()
     try:
-        # 1. Update status to Processing
         doc = db.query(Document).filter(Document.id == document_id).first()
         if not doc:
             logger.error(f"Document {document_id} not found")
@@ -217,79 +154,85 @@ def process_document_task(document_id: int, file_path: str):
 
         doc.status = "Processing"
         db.add(StatusHistory(document_id=doc.id, new_status="Processing", previous_status="File Uploaded"))
-        db.add(ProcessingLog(document_id=doc.id, description="Started extracting raw text from PDF.", status="Processing", created_by="System"))
+        db.add(ProcessingLog(document_id=doc.id, description="Started processing with OpenAI Vision API.", status="Processing", created_by="System"))
         db.commit()
 
-        # 2. Extract text from PDF
-        db.add(ProcessingLog(document_id=doc.id, description="Attempting text extraction (pdfplumber -> PyMuPDF -> EasyOCR fallback)...", status="Processing", created_by="System"))
+        # Check API Key
+        if not settings.OPENAI_API_KEY:
+            doc.status = "Failed"
+            msg = "Missing OPENAI_API_KEY in .env file. Extraction aborted."
+            db.add(StatusHistory(document_id=doc.id, new_status="Failed", previous_status="Processing"))
+            db.add(ProcessingLog(document_id=doc.id, description=msg, status="Failed", created_by="System"))
+            db.commit()
+            logger.error(msg)
+            return
+
+        # ---- Extract Images ----
+        db.add(ProcessingLog(document_id=doc.id, description="Converting PDF pages to images...", status="Processing", created_by="System"))
         db.commit()
 
-        raw_text = extract_text_from_pdf(file_path)
-
-        char_count = len(raw_text.strip())
-        db.add(ProcessingLog(document_id=doc.id, description=f"Extracted {char_count} characters of raw text.", status="Processing", created_by="System"))
-        db.commit()
-
-        if char_count < 20:
+        base64_images = extract_images_from_pdf(file_path, max_pages=50)
+        
+        if not base64_images:
             doc.status = "Failed"
             db.add(StatusHistory(document_id=doc.id, new_status="Failed", previous_status="Processing"))
-            db.add(ProcessingLog(document_id=doc.id, description="Failed: Could not extract meaningful text from PDF.", status="Failed", created_by="System"))
-            doc.confidence_score = 0.0
-            doc.accuracy_score = 0.0
+            db.add(ProcessingLog(document_id=doc.id, description="Failed: could not convert PDF to images.", status="Failed", created_by="System"))
             db.commit()
             return
 
-        # 3. Parse structured fields
-        db.add(ProcessingLog(document_id=doc.id, description="Parsing extracted text using AI regex rules.", status="Processing", created_by="System"))
+        # ---- Call OpenAI Vision API ----
+        db.add(ProcessingLog(document_id=doc.id, description=f"Sending {len(base64_images)} pages to OpenAI gpt-4o for structured extraction...", status="Processing", created_by="System"))
         db.commit()
 
-        parsed_data = parse_demand_letter(raw_text)
+        parsed = call_openai_vision(base64_images)
 
-        # Log what was found
-        filled = {k: v for k, v in parsed_data.items() if v}
-        logger.info(f"Document {document_id}: extracted {len(filled)} fields: {list(filled.keys())}")
-        db.add(ProcessingLog(
-            document_id=doc.id,
-            description=f"Extracted {len(filled)} fields: {', '.join(filled.keys())}",
-            status="Processing", created_by="System"
-        ))
-        db.commit()
+        # Log the full extraction result as JSON for debugging
+        logger.info(f"Document {document_id} AI extraction result: {json.dumps(parsed, indent=2)}")
 
-        # 4. Create ExtractedData record
-        valid_fields = {k: str(v) for k, v in parsed_data.items() if v and hasattr(ExtractedData, k)}
-        extracted = ExtractedData(document_id=doc.id, **valid_fields)
+        # ---- Map parsed fields to ExtractedData model ----
+        today = datetime.utcnow().strftime("%m/%d/%Y")
+        
+        db_fields = {
+            "processing_date": today,
+            "received_date": today,
+            "claimant_number": "N/A" # Default
+        }
+        
+        # Add values from AI response
+        for parsed_key, field_data in parsed.items():
+            if hasattr(ExtractedData, parsed_key):
+                val = field_data["value"]
+                if val and val not in ("N/A", "0.00", "Not found"):
+                    db_fields[parsed_key] = str(val)
+
+        extracted = ExtractedData(document_id=doc.id, **db_fields)
         db.add(extracted)
 
-        # 5. Calculate confidence and accuracy
-        # Core fields we expect to find in a demand letter
-        core_fields = [
-            "claim_number", "claimant_name", "policy_number", "provider",
-            "date_of_loss", "document_date", "amount_billed", "amount_paid",
-            "amount_owed", "date_of_service_from", "date_of_service_to",
-            "firm_name", "certification_number"
-        ]
-        core_filled = sum(1 for f in core_fields if parsed_data.get(f))
-        confidence = round(core_filled / len(core_fields), 2)
+        # ---- Calculate overall confidence ----
+        confidences = [data["confidence"] for key, data in parsed.items()]
+        avg_confidence = sum(confidences) / max(len(confidences), 1)
+        
+        filled_fields = [k for k, v in parsed.items() if v["value"] not in ("N/A", "0.00", "Not found", "No")]
+        field_coverage = len(filled_fields) / len(parsed)
 
-        # Ensure minimum 90% if we got at least 8 core fields
-        if core_filled >= 8:
-            confidence = max(0.91, confidence)
-        elif core_filled >= 5:
-            confidence = max(0.75, confidence)
+        # Overall confidence: weighted average
+        overall_confidence = round(0.7 * avg_confidence + 0.3 * field_coverage, 2)
+        overall_accuracy = round(min(0.99, overall_confidence * 0.95 + 0.04), 2)
 
-        doc.confidence_score = confidence
-        doc.accuracy_score = min(0.99, round(confidence * 0.97 + 0.02, 2))
+        doc.confidence_score = overall_confidence
+        doc.accuracy_score = overall_accuracy
 
-        # 6. Finalize
+        # ---- Finalize ----
         doc.status = "Data Extracted"
         db.add(StatusHistory(document_id=doc.id, new_status="Data Extracted", previous_status="Processing"))
+
         db.add(ProcessingLog(
             document_id=doc.id,
-            description=f"OCR and AI extraction completed. {core_filled}/{len(core_fields)} core fields extracted. Confidence: {confidence:.0%}",
+            description=f"AI Extraction complete in seconds! {len(filled_fields)} fields extracted. Confidence: {overall_confidence:.0%}.",
             status="Data Extracted", created_by="System"
         ))
         db.commit()
-        logger.info(f"Document {document_id} processed successfully. Confidence: {confidence:.0%}")
+        logger.info(f"Document {document_id} processed via OpenAI. {len(filled_fields)} fields, confidence {overall_confidence:.0%}")
 
     except Exception as e:
         logger.error(f"Document {document_id} processing failed: {e}", exc_info=True)

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Box, Typography, Paper, Button, CircularProgress, useTheme, Tooltip } from '@mui/material';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
@@ -13,7 +13,16 @@ export const Upload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [sharepointReady, setSharepointReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    settingsApi.getSettings().then(data => {
+      if (data.is_authenticated && data.sharepoint_url) {
+        setSharepointReady(true);
+      }
+    }).catch(err => console.error("Failed to fetch settings", err));
+  }, []);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -179,14 +188,18 @@ export const Upload = () => {
                 >
                   Browse Files
                 </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleSharepointUpload}
-                  disabled={uploading}
-                  sx={{ px: 4, borderRadius: 2 }}
-                >
-                  {uploading ? 'Syncing...' : 'Upload from SharePoint'}
-                </Button>
+                <Tooltip title={!sharepointReady ? "Requires Microsoft authentication and SharePoint URL in Settings" : "Simulate automated SharePoint sync"}>
+                  <span>
+                    <Button
+                      variant="outlined"
+                      onClick={handleSharepointUpload}
+                      disabled={uploading || !sharepointReady}
+                      sx={{ px: 4, borderRadius: 2 }}
+                    >
+                      {uploading ? 'Syncing...' : 'Upload from SharePoint'}
+                    </Button>
+                  </span>
+                </Tooltip>
               </Box>
             </>
           )}

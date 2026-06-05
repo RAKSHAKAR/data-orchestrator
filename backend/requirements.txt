@@ -11,3 +11,6 @@ PyMuPDF
 easyocr
 Pillow
 numpy
+pandas
+openpyxl
+openai

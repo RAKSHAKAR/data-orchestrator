@@ -1,0 +1,5 @@
+SOL_IDP_InvoiceProcessing*
+deploy_package_v3*
+*.exe
+*.zip
+push.ps1

@@ -14,20 +14,77 @@ router = APIRouter()
 
 class SettingsUpdate(BaseModel):
     sharepoint_url: str
+    openai_api_key: str | None = None
+    guidewire_api_url: str | None = None
+    guidewire_api_key: str | None = None
 
 # Mock storage for demo purposes
 mock_settings = {
     "sharepoint_url": "",
+    "openai_api_key": "",
+    "guidewire_api_url": "",
+    "guidewire_api_key": "",
     "is_authenticated": False
 }
 
 @router.get("/")
 def get_settings():
+    from app.core.config import settings as app_settings
+    mock_settings["openai_api_key"] = app_settings.OPENAI_API_KEY or ""
+    mock_settings["guidewire_api_url"] = app_settings.GUIDEWIRE_API_URL or "https://gw-api.demo.com/cc/rest/claims"
+    mock_settings["guidewire_api_key"] = app_settings.GUIDEWIRE_API_KEY or "gw-mock-secret-key-12345"
     return mock_settings
 
 @router.post("/")
 def update_settings(settings: SettingsUpdate):
+    from app.core.config import settings as app_settings
+    import os
+    
     mock_settings["sharepoint_url"] = settings.sharepoint_url
+    
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+    
+    updates = {}
+    
+    if settings.openai_api_key is not None:
+        mock_settings["openai_api_key"] = settings.openai_api_key
+        app_settings.OPENAI_API_KEY = settings.openai_api_key
+        updates["OPENAI_API_KEY"] = settings.openai_api_key
+
+    if settings.guidewire_api_url is not None:
+        mock_settings["guidewire_api_url"] = settings.guidewire_api_url
+        app_settings.GUIDEWIRE_API_URL = settings.guidewire_api_url
+        updates["GUIDEWIRE_API_URL"] = settings.guidewire_api_url
+
+    if settings.guidewire_api_key is not None:
+        mock_settings["guidewire_api_key"] = settings.guidewire_api_key
+        app_settings.GUIDEWIRE_API_KEY = settings.guidewire_api_key
+        updates["GUIDEWIRE_API_KEY"] = settings.guidewire_api_key
+
+    try:
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+                
+        with open(env_path, "w") as f:
+            for line in lines:
+                written = False
+                for k, v in updates.items():
+                    if line.startswith(f"{k}="):
+                        f.write(f"{k}={v}\n")
+                        written = True
+                        break
+                if not written:
+                    f.write(line)
+            
+            # Add any that weren't in the file
+            for k, v in updates.items():
+                if not any(l.startswith(f"{k}=") for l in lines):
+                    f.write(f"{k}={v}\n")
+    except Exception as e:
+        print(f"Error saving to .env: {e}")
+
     return mock_settings
 
 @router.post("/auth")

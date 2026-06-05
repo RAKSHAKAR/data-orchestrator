@@ -2,8 +2,10 @@ import os
 import shutil
 import uuid
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Response
+from fastapi.responses import FileResponse, StreamingResponse
+import csv
+import io
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.domain import Document, ExtractedData, ProcessingLog, AuditHistory, StatusHistory
@@ -19,6 +21,50 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def read_documents(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     docs = db.query(Document).order_by(Document.created_at.desc()).offset(skip).limit(limit).all()
     return docs
+
+import pandas as pd
+from io import BytesIO
+
+@router.get("/export/excel")
+def export_documents_excel(db: Session = Depends(get_db)):
+    docs = db.query(Document).all()
+    
+    headers = ["ID", "File Name", "Status", "Confidence", "Accuracy", "Created At"]
+    field_names = [
+        "claim_number", "claimant_name", "firm_name", "provider", "amount_owed", 
+        "certified_mail", "firm_address", "amount_billed", "amount_paid", 
+        "no_of_documents_in_envelope", "policy_number", "dol", "certification_number", 
+        "document_date", "assignment_of_benefit", "eighty_percent_amount_billed", 
+        "date_of_service_from", "date_of_service_to", "envelope_type", "total_postage_cost"
+    ]
+    
+    rows = []
+    for doc in docs:
+        # Convert datetime to string to avoid timezone issues in excel
+        created_at_str = doc.created_at.strftime("%Y-%m-%d %H:%M:%S") if doc.created_at else ""
+        row = [
+            doc.id, doc.file_name, doc.status, doc.confidence_score, doc.accuracy_score, created_at_str
+        ]
+        if doc.extracted_data:
+            for field in field_names:
+                row.append(getattr(doc.extracted_data, field, ""))
+        else:
+            row.extend([""] * len(field_names))
+            
+        rows.append(row)
+
+    df = pd.DataFrame(rows, columns=headers + field_names)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Documents')
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]), 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers={"Content-Disposition": "attachment; filename=documents_export.xlsx"}
+    )
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 def read_document(document_id: int, db: Session = Depends(get_db)):
@@ -141,3 +187,85 @@ def delete_document(document_id: int, db: Session = Depends(get_db)):
     db.delete(doc)
     db.commit()
     return {"detail": "Document deleted successfully"}
+
+@router.post("/{document_id}/validate")
+def validate_document(document_id: int, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc or not doc.extracted_data:
+        raise HTTPException(status_code=404, detail="Document or extracted data not found")
+        
+    extracted = doc.extracted_data
+    
+    # Mock Guidewire Response
+    # We will purposely create a mismatch for Amount Billed if it's not a round number, 
+    # or just force a mismatch on a couple fields to demonstrate the UI.
+    mock_guidewire_data = {
+        "claim_number": extracted.claim_number or "N/A",
+        "claimant_name": extracted.claimant_name or "N/A",
+        "amount_billed": "999.99", # Force mismatch
+        "provider": extracted.provider or "N/A",
+    }
+    
+    mismatches = []
+    
+    if extracted.amount_billed != mock_guidewire_data["amount_billed"]:
+        mismatches.append({
+            "field": "amount_billed",
+            "extracted": extracted.amount_billed,
+            "guidewire": mock_guidewire_data["amount_billed"]
+        })
+        
+    if extracted.provider and mock_guidewire_data["provider"] and extracted.provider.lower() != mock_guidewire_data["provider"].lower():
+        mismatches.append({
+            "field": "provider",
+            "extracted": extracted.provider,
+            "guidewire": mock_guidewire_data["provider"]
+        })
+        
+    status = "VALIDATED" if len(mismatches) == 0 else "PENDING_VALIDATION"
+    doc.status = status
+    
+    log = ProcessingLog(document_id=doc.id, description=f"Validation triggered. Status set to {status}.", status=status, created_by="System")
+    db.add(log)
+    db.commit()
+    db.refresh(doc)
+    
+    return {
+        "status": status,
+        "mismatches": mismatches,
+        "mock_guidewire_data": mock_guidewire_data
+    }
+
+@router.post("/{document_id}/send_guidewire")
+def send_to_guidewire(document_id: int, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    if doc.status not in ["VALIDATED", "PENDING_VALIDATION", "COMPLETED"]:
+        raise HTTPException(status_code=400, detail="Document not ready to be sent")
+        
+    doc.status = "COMPLETED"
+    from app.core.config import settings as app_settings
+    gw_url = app_settings.GUIDEWIRE_API_URL or "default mock endpoint"
+    log = ProcessingLog(document_id=doc.id, description=f"Document sent to Guidewire via API at {gw_url}.", status="COMPLETED", created_by="Admin User")
+    db.add(log)
+    db.commit()
+    return {"status": "success"}
+
+from pydantic import BaseModel
+class BulkSendRequest(BaseModel):
+    document_ids: List[int]
+
+@router.post("/bulk_send_guidewire")
+def bulk_send_guidewire(request: BulkSendRequest, db: Session = Depends(get_db)):
+    docs = db.query(Document).filter(Document.id.in_(request.document_ids)).all()
+    count = 0
+    for doc in docs:
+        if doc.status in ["VALIDATED", "PENDING_VALIDATION"]:
+            doc.status = "COMPLETED"
+            log = ProcessingLog(document_id=doc.id, description="Document sent to Guidewire via Bulk API.", status="COMPLETED", created_by="Admin User")
+            db.add(log)
+            count += 1
+    db.commit()
+    return {"status": "success", "sent_count": count}
